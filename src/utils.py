@@ -41,6 +41,8 @@ def T_z(theta_rad): return np.array([[np.cos(theta_rad), np.cos(np.pi/2-theta_ra
 """Create a 3D tensor given the x, y, z, xy, xz, yz values"""
 def create_tensor_3D(_11, _22, _33, _23=0, _13=0, _12=0): return np.array([[_11, _12, _13],[_12, _22, _23],[_13, _23, _33]])
 
+'''Create a vector from a given 3D tensor'''
+def tensor_to_vec(tensor): return np.array([*np.diag(tensor), tensor[1,2], tensor[0,2], tensor[0,1]])
 
 def transformation_3D(tensor, rot_matrix, theta, theta_radians=False):
     '''

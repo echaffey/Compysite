@@ -13,8 +13,8 @@ class Laminate:
         self._num_plys = 0
         self._list_plys = []
         self._thickness = 0
-        self._length = 0
-        self._width = 0
+        self._length = length
+        self._width = width
     
     
     def add_lamina(self, new_lamina:Lamina, orientation):
@@ -119,4 +119,4 @@ if __name__ == '__main__':
     # print(layer_2.S_red.dot(sig_1)*1e6)
     
     print(S.dot(T).dot(sig))
-    print(np.linalg.inv(T).dot(S.dot(T).dot(sig)))
+    print(T.T.dot(S.dot(T).dot(sig)))
