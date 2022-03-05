@@ -26,6 +26,9 @@ class Lamina:
         self._Vol_f = Vol_fiber
         self._Vol_m = Vol_matrix
         self.thickness = thickness
+        self.S = None
+        self.S_red = None
+        self.C = None
         
         if orientation is not None: 
             self._orientation = orientation
@@ -50,8 +53,76 @@ class Lamina:
             else:
                 self._material = mat_composite
                 print('You must create at least one material that is not a fiber.')
+        else:
+            self._material = mat_composite
+                
+        E_c, v_c, G_c = self._material.get_properties()
         
-       
+        self.S = self.compliance_matrix_3D(E_c, v_c, G_c)
+        self.S_red = self.reduced_compliance_matrix(E_c, v_c, G_c)
+        
+        
+    def compliance_matrix_3D(self, E, v, G):
+        '''
+        Returns the orthotropic compliance matrix.
+        
+        Parameters:
+            E (np.ndarray): Vector of the elastic moduli for each of the principal directions [E1, E2, E3]
+            v (np.ndarray): Vector of Poisson's ratio for each of the principal directions [v23, v13, v12]
+            G (np.ndarray): Vector of the shear moduli for each fo the principal directions [G23, G13, G12]
+            
+        Returns:
+            S (np.ndarray): Compliance matrix describing the material in the 3 principal directions
+        '''
+            
+        # Unpack the Poisson's ratio values
+        _v23, _v13, _v12 = v
+        
+        # Create the 3x3 linear-elastic stress relationship
+        _norm = np.ones((3,3))*(1/E)
+        _n  = np.eye(3)
+        
+        # Relationships between elastic modulii and Poison's ratio
+        _n[0,1] = -E[1]/E[0]*_v12
+        _n[1,0] = -_v12
+        _n[0,2] = -E[2]/E[0]*_v13
+        _n[2,0] = -_v13
+        _n[1,2] = -E[1]/E[2]*_v23
+        _n[2,1] = -_v23
+
+        # Create the 3x3 shear relationship
+        _shear = np.eye(3) / G
+
+        # Combine all into compliance matrix
+        _S = np.zeros((6,6))
+        _S[:3,:3] = _n * _norm
+        _S[3:,3:] = _shear
+        
+        return _S
+    
+    
+    def reduced_compliance_matrix(self, E, v, G):
+        '''
+        Returns the planar compliance matrix.
+        
+        Parameters:
+            E (np.ndarray): Vector of the elastic moduli for each of the principal directions
+            v (np.ndarray): Vector of Poisson's ratio for each of the principal directions [v23, v13, v12]
+            G (np.ndarray): Vector of the shear moduli for each fo the principal directions [G23, G13, G12]
+            
+        Returns:
+            S (np.ndarray): Planar (reduced) compliance matrix 
+        '''
+        
+        S = self.compliance_matrix_3D(E, v, G)
+        
+        _S_r = np.zeros((3,3))
+        _S_r[:2, :2] = S[:2, :2]
+        _S_r[2,2] = S[-1, -1]
+        
+        return _S_r
+    
+    
     def halpin_tsai(self, M_f, M_m, V_f, array_geometry=1):
         '''
         Calculates the Halpin-Tsai prediction for the in-plane and transverse elastic or shear modulus of the composite material.

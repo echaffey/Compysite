@@ -1,3 +1,5 @@
+import numpy as np
+
 class Material:
     
     def __init__(self, E=None, v=None, G=None, alpha=None, beta=None, name=''):
