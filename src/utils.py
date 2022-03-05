@@ -135,3 +135,37 @@ def stress2strain(stress_tensor, elasticity_mod, poissons_ratio, shear_mod) -> n
     _strain_vec = _S.dot(_vec)
 
     return _strain_vec
+
+
+def to_gamma(strain_tensor) -> np.ndarray:
+    '''
+    Converts a given strain tensor into a matrix with shear strain in terms of gamma.
+    
+    Parameters:
+        strain_tensor (np.ndarray): Strain tensor in terms of epsilon.
+        
+    Returns:
+        gamma_matrix (np.ndarray):  Strain matrix in terms of gamma.
+    '''
+    _strain_tensor = strain_tensor.copy()
+    
+    _gamma_matrix = _strain_tensor + (_strain_tensor - _strain_tensor*np.eye(3))
+    
+    return _gamma_matrix
+
+
+def to_epsilon(strain_matrix) -> np.ndarray:
+    '''
+    Converts a given strain matrix into a strain tensor with shear strain in terms of gamma.
+    
+    Parameters:
+        strain_matrix (np.ndarray): Strain matrix in terms of gamma.
+        
+    Returns:
+        epsilon_tensor (np.ndarray):  Strain tensor in terms of epsilon.
+    '''
+    _strain_matrix = strain_matrix.copy()
+    
+    _epsilon_tensor = _strain_matrix*np.eye(3) + 0.5*(_strain_matrix - _strain_matrix*np.eye(3))
+    
+    return _epsilon_tensor

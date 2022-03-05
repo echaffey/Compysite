@@ -1,8 +1,10 @@
-
-import numpy as np
 from lamina import Lamina
 from material import Material
 from utils import create_tensor_3D, transformation_3D, T_z, stress2strain
+
+import numpy as np
+from typing import Union
+
 
 
 class Laminate:
@@ -56,6 +58,144 @@ class Laminate:
         _prime = _R.dot(_tensor).dot(_R.T)
         
         return _prime
+    
+    
+    def principal_stress_3D(stress_tensor) -> Union[np.ndarray, np.ndarray]:
+        '''
+        Returns the three principal stresses of a given tensor and their corresponding direction vectors.
+        
+            Parameters:
+                stress_tensor (numpy.ndarray):  Stress tensor
+            Returns:
+                p_val (numpy.ndarray):  Array of ordered principal stress in descending value 
+                p_vec (numpy.ndarray):  Array of corresponding direction vectors
+        '''
+        _stress_tensor = stress_tensor.copy()
+        
+        # Principal stresses and thier corresponding vectors
+        _e_val, _e_vec = np.linalg.eig(_stress_tensor)
+        
+        # Sort the principal stresses in ascending order
+        _p3, _p2, _p1 = np.sort(_e_val)
+        
+        # Correlate the sorted stresses with their vectors
+        _e_val_l = _e_val.tolist()
+        _p1_index, _p2_index, _p3_index = _e_val_l.index(_p1), _e_val_l.index(_p2), _e_val_l.index(_p3)
+        _p1_vec, _p2_vec, _p3_vec = _e_vec[:,_p1_index], _e_vec[:,_p2_index], _e_vec[:,_p3_index]
+        
+        # Assembble two vectors containing the principal stresses and their dirctional vectors
+        _p_val, _p_vec = np.array([_p1,_p2,_p3]), np.array([_p1_vec, _p2_vec, _p3_vec])
+        
+        return _p_val, _p_vec
+
+
+    def stress2strain(stress_tensor, lamina: Lamina) -> np.ndarray:
+        '''
+        Conversion from stress tensor to strain vector.
+        
+            Parameters:
+                stress_tensor (numpy.ndarray):   Stress tensor 
+                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
+                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
+                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
+                
+            Returns:
+                strain_vec (numpy.ndarray):  Strain vector [E_1, E_2, E_3, g_23, g_13, g_12]
+        '''
+        
+        _stress_tensor = stress_tensor.copy()
+        
+        # Unpack tensor into a 6x1 column vector
+        _vec = np.array([*np.diag(_stress_tensor), _stress_tensor[1,2], _stress_tensor[0,2], _stress_tensor[0,1]])
+
+        # Create compliance matrix
+        _S = lamina.S
+
+        _strain_vec = _S.dot(_vec)
+
+        return _strain_vec
+    
+    def stress2strain_global(stress_tensor, lamina: Lamina) -> np.ndarray:
+        '''
+        Conversion from global stress tensor to global strain vector.
+        
+            Parameters:
+                stress_tensor (numpy.ndarray):   Stress tensor 
+                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
+                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
+                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
+                
+            Returns:
+                strain_vec (numpy.ndarray):  Strain vector [E_1, E_2, E_3, g_23, g_13, g_12]
+        '''
+        
+        _stress_tensor = stress_tensor.copy()
+        
+        # Unpack tensor into a 6x1 column vector
+        _vec = np.array([*np.diag(_stress_tensor), _stress_tensor[1,2], _stress_tensor[0,2], _stress_tensor[0,1]])
+
+        # Create compliance matrix
+        _S = lamina.S_bar
+
+        _strain_vec = _S.dot(_vec)
+
+        return _strain_vec
+
+
+    def strain2stress(strain_tensor, lamina: Lamina) -> np.ndarray:
+        '''
+        Conversion from strain tensor to stress vector. 
+        Strain must be in terms of gamma so pre-mulitiply the epsilon values by 2 for state of strain.
+        State of strain is a tensor in terms of epsilon.
+        
+            Parameters:
+                strain_tensor (numpy.ndarray):   Strain tensor in terms of gamma
+                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
+                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
+                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
+                
+            Returns:
+                stress_vec (numpy.ndarray):  Stress vector [s_1, s_2, s_3, t_23, t_13, t_12] 
+        '''
+        _strain_tensor = strain_tensor.copy()
+        
+        # Unpack tensor into a 6x1 column vector
+        _vec = np.array([*np.diag(_strain_tensor), _strain_tensor[1,2], _strain_tensor[0,2], _strain_tensor[0,1]])
+        
+        # Create stiffness matrix
+        _C = lamina.C
+        
+        _stress_vec = _C.dot(_vec)
+        
+        return _stress_vec
+    
+    
+    def strain2stress_global(strain_tensor, lamina: Lamina) -> np.ndarray:
+        '''
+        Conversion from strain tensor to stress vector. 
+        Strain must be in terms of gamma so pre-mulitiply the epsilon values by 2 for state of strain.
+        State of strain is a tensor in terms of epsilon.
+        
+            Parameters:
+                strain_tensor (numpy.ndarray):   Strain tensor in terms of gamma
+                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
+                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
+                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
+                
+            Returns:
+                stress_vec (numpy.ndarray):  Stress vector [s_1, s_2, s_3, t_23, t_13, t_12] 
+        '''
+        _strain_tensor = strain_tensor.copy()
+        
+        # Unpack tensor into a 6x1 column vector
+        _vec = np.array([*np.diag(_strain_tensor), _strain_tensor[1,2], _strain_tensor[0,2], _strain_tensor[0,1]])
+        
+        # Create stiffness matrix
+        _C = lamina.Q_bar
+        
+        _stress_vec = _C.dot(_vec)
+        
+        return _stress_vec
     
     
     def apply_stress(self, tensor_applied):

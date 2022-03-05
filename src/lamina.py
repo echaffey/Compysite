@@ -58,11 +58,13 @@ class Lamina:
         self.S = self._compliance_matrix_3D()
         self.S_reduced = self._reduced_compliance_matrix()
         self.S_bar = self._transformed_compliance_matrix()
+        self.S_bar_reduced = self._transformed_compliance_matrix_2D()
         
         # Assemble stiffness matrices
         self.C = np.linalg.inv(self.S)
         self.C_reduced = np.linalg.inv(self.S_reduced)
         self.Q_bar = np.linalg.inv(self.S_bar)
+        self.Q_bar_reduced = np.linalg.inv(self.S_bar_reduced)
         
         
     def _compliance_matrix_3D(self) -> np.ndarray:
@@ -128,7 +130,7 @@ class Lamina:
         return _S_r
     
     
-    def transformation_matrix(self) -> np.ndarray:
+    def transformation_matrix_2D(self) -> np.ndarray:
         theta_rad: float = self._orientation
         
         c = np.cos(theta_rad)
@@ -140,16 +142,42 @@ class Lamina:
         
         return T
     
+    
+    def transformation_matrix_3D(self) -> np.ndarray:
+        theta_rad: float = self._orientation
+        
+        c = np.cos(theta_rad)
+        s = np.sin(theta_rad)
+        
+        T = np.array([[c**2, s**2, 0, 0, 0, 2*c*s], 
+                    [s**2, c**2, 0, 0, 0, -2*c*s],
+                    [0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, c, s, 0],
+                    [0, 0, 0, -s, c, 0], 
+                    [-c*s, c*s, 0, 0, 0, c**2-s**2]])
+        
+        return T
+    
+    def _transformed_compliance_matrix_2D(self) -> np.ndarray:
+        
+        
+        T = self.transformation_matrix_2D()
+        
+        S = self.S_reduced
+        S_bar_reduced = T.T.dot(S).dot(T) 
+        
+        return S_bar_reduced
+    
+    
     def _transformed_compliance_matrix(self) -> np.ndarray:
         
         
-        T = self.transformation_matrix()
+        T = self.transformation_matrix_3D()
         
-        S = self.S_reduced
-        S_trans = T.T.dot(S).dot(T)
-        self.S_trans = S_trans 
+        S = self.S
+        S_bar = T.T.dot(S).dot(T)
         
-        return S_trans
+        return S_bar
     
     
     def _halpin_tsai(self, M_f, M_m, V_f, array_geometry=1) -> float:
@@ -322,10 +350,6 @@ class Lamina:
         '''
         
         xi = array_geometry
-        
-        # -------------------------------------------------------
-        # CHANGE THIS BACK TO ACCEPT THE PROPERTIES AS ARGUMENTS
-        # -------------------------------------------------------
         
         # Calculate the composite elastic modulus
         _E = self._composite_elastic_mod(mat_fiber, mat_matrix, array_geometry=xi)
