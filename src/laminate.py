@@ -1,6 +1,6 @@
 from lamina import Lamina
 from material import Material
-from utils import create_tensor_3D, transformation_3D, T_z, stress2strain
+from utils import create_tensor_3D, T_z, to_epsilon, to_gamma
 
 import numpy as np
 from typing import Union
@@ -13,13 +13,19 @@ class Laminate:
     def __init__(self, length=0, width=0):
         
         self._num_plys = 0
-        self._list_plys = []
+        self._layers = {'lamina':[], 
+                        'orientation':[],
+                        'material':[None],
+                        'stress':[None],
+                        'strain':[None],
+                        'global_stress':[None],
+                        'global_strain':[None]}
         self._thickness = 0
         self._length = length
         self._width = width
     
     
-    def add_lamina(self, new_lamina:Lamina, orientation):
+    def add_lamina(self, new_lamina: Lamina, orientation: float):
         '''
         Adds a new lamina layer to the laminate stack.  Updates the dimensions of the laminate and 
         recalculates the net directional stresses acting on the laminate. 
@@ -30,11 +36,14 @@ class Laminate:
                                              principal axes in the z, y, x directions. 
         '''
         
-        self._list_plys.append((new_lamina, orientation))
+        self._layers['lamina'].append(new_lamina)
+        self._layers['orientation'].append(orientation)
+        
         self._thickness += new_lamina.thickness
+        self._num_plys += 1
 
 
-    def transformation_3D(tensor, rot_matrix, theta, theta_radians=False):
+    def transformation_3D(self, tensor, rot_matrix, theta, theta_radians=False):
         '''
         Return the transformed 3D tensor. Shear outputs are in terms of epsilon.
         
@@ -89,7 +98,7 @@ class Laminate:
         return _p_val, _p_vec
 
 
-    def stress2strain(stress_tensor, lamina: Lamina) -> np.ndarray:
+    def stress2strain(stress_tensor, lamina: Lamina, theta_deg: float=0) -> np.ndarray:
         '''
         Conversion from stress tensor to strain vector.
         
@@ -105,15 +114,65 @@ class Laminate:
         
         _stress_tensor = stress_tensor.copy()
         
+        # Convert to radians
+        theta_rad = theta_deg * np.pi/180
+        
         # Unpack tensor into a 6x1 column vector
         _vec = np.array([*np.diag(_stress_tensor), _stress_tensor[1,2], _stress_tensor[0,2], _stress_tensor[0,1]])
 
         # Create compliance matrix
-        _S = lamina.S
+        _S = lamina.compliance_matrix(theta_rad=theta_rad)
 
         _strain_vec = _S.dot(_vec)
 
         return _strain_vec
+    
+    
+    def stress2strain_global_temp(self, stress_tensor) -> np.ndarray:
+        '''
+        Conversion from global stress tensor to global strain vector.
+        
+            Parameters:
+                stress_tensor (numpy.ndarray):   Stress tensor 
+                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
+                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
+                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
+                
+            Returns:
+                strain_vec (numpy.ndarray):  Strain vector [E_1, E_2, E_3, g_23, g_13, g_12]
+        '''
+        
+        for i, lamina in enumerate(self._layers['lamina']):
+            
+            # Retrieve the selected layer's orientation
+            theta_deg = self._layers['orientation'][i]
+            
+            # Transform global to local lamina stress
+            local_lamina_stress = self.transformation_3D(stress_tensor, T_z, theta=theta_deg)
+            
+            # Store the layer's stress state
+            if i > len(self._layers['stress']):
+                self._layers['stress'].append(local_lamina_stress)
+            else:
+                self._layers['stress'][i] = local_lamina_stress
+            
+            # Convert local stress to local strain and store the value
+            local_lamina_strain = lamina.stress2strain(local_lamina_stress)
+            if i > len(self._layers['strain']):
+                self._layers['strain'].append(local_lamina_strain)
+            else:
+                self._layers['strain'][i] = local_lamina_strain
+            
+            # Epsilon tensor of local lamina strain
+            e_local = to_epsilon(create_tensor_3D(*local_lamina_strain))
+            
+            # Gamma values of global lamina strain
+            e_global = to_gamma(self.transformation_3D(e_local, T_z, theta=-theta_deg))
+            if i > len(self._layers['global_strain']):
+                self._layers['global_strain'].append(e_global)
+            else:
+                self._layers['global_strain'][i] = e_global
+    
     
     def stress2strain_global(stress_tensor, lamina: Lamina) -> np.ndarray:
         '''
@@ -134,7 +193,7 @@ class Laminate:
         # Unpack tensor into a 6x1 column vector
         _vec = np.array([*np.diag(_stress_tensor), _stress_tensor[1,2], _stress_tensor[0,2], _stress_tensor[0,1]])
 
-        # Create compliance matrix
+        # Transformed compliance matrix
         _S = lamina.S_bar
 
         _strain_vec = _S.dot(_vec)
@@ -213,50 +272,3 @@ class Laminate:
         # inverse compliance
         pass
     
-if __name__ == '__main__':
-    
-    lam = Laminate()
-    
-    sigma = create_tensor_3D(100, 10, 0, 0, 0, -5)
-    s_prime = transformation_3D(sigma, T_z, 55)
-    
-    # print(s_prime)
-    
-    V_f = 0.61
-    xi = 1
-    
-    E_f = np.array([233, 23.1, 23.1])*1e9
-    v_f = np.array([0.4, 0.2, 0.2])
-    G_f = np.array([8.27, 8.96, 8.96])*1e9
-    alpha_f = np.array([-0.54, 10.10, 10.10])*1e-6
-    
-    E_m = np.ones(3)*4.62e9
-    v_m = np.ones(3)*0.360
-    alpha_m = np.ones(3)*41.4e-6
-    
-    fiber = Material(E_f, v_f, G_f, alpha_f, name='fiber')
-    matrix = Material(E_m, v_m, alpha=alpha_m, name='matrix')
-    
-    layer_1 = Lamina(fiber, matrix, Vol_fiber=V_f, array_geometry=xi)
-    
-    E, v, G = layer_1.get_lamina_properties()
-    
-    E = np.array([14, 3.5, 3.5])*1e9
-    v = np.array([0, 0.4, 0.4])
-    G = np.array([0, 4.2, 4.2])*1e9
-    
-    comp = Material(E, v, G, name='comp')
-    layer_2 = Lamina(mat_composite=comp, Vol_fiber=1)
-    
-    theta = 60
-    c = np.cos(theta*np.pi/180)
-    s = np.sin(theta*np.pi/180)
-    
-    T = np.array([[c**2, s**2, 2*c*s], [s**2, c**2, -2*c*s], [-c*s, c*s, c**2-s**2]])
-    sig = np.array([-3.5, 7, -1.4])*1e6
-    sig_1 = T.dot(sig)
-    S = layer_2.S_red
-    # print(layer_2.S_red.dot(sig_1)*1e6)
-    
-    print(S.dot(T).dot(sig))
-    print(T.T.dot(S.dot(T).dot(sig)))

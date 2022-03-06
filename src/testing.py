@@ -3,6 +3,7 @@ import Compysite as comp
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 from utils import create_tensor_3D, transformation_3D, T_z, to_epsilon, to_gamma, tensor_to_vec
 
 if __name__ == '__main__':
@@ -38,8 +39,10 @@ if __name__ == '__main__':
     v = np.array([0.5, 0.4, 0.4])
     G = np.array([3, 4.2, 4.2])
     
+    lam = comp.Laminate()
     mat_1 = comp.Material(E, v, G, name='test')
     layer_1 = comp.Lamina(mat_composite=mat_1, deg_orientation=60)
+    lam.add_lamina(layer_1, 60)
     
     # Create global applied stress
     sigma_xyz = create_tensor_3D(-3.5, 7, 0, 0, 0, -1.4)
@@ -52,14 +55,20 @@ if __name__ == '__main__':
     
     # Convert to epsilon tensor (MUST DO)
     e_123 = to_epsilon(create_tensor_3D(*e_123))
+    # e_123 = create_tensor_3D(*e_123)
     
     # Transform local to global strain and convert back to gamma (MUST DO)
     e_xyz = to_gamma(transformation_3D(e_123, T_z, -60))
     
     # CORRECT ACCORDING TO NOTES
     print(tensor_to_vec(e_xyz))
-    print(comp.Laminate.stress2strain_global(sigma_xyz,layer_1))
-    print(comp.Laminate.strain2stress_global(e_xyz, layer_1).round(4))
+    # print(comp.Laminate.stress2strain_global(sigma_xyz, layer_1))
+    # print(comp.Laminate.stress2strain(sigma_xyz, layer_1, 60))
+    lam.stress2strain_global_temp(sigma_xyz)
+    print(lam._layers['strain'][0])
+    
+    # print(comp.Laminate.strain2stress_global(e_xyz, layer_1).round(4))
+    
     
     # 1. assign material properties
     # 2. Create material
@@ -68,3 +77,4 @@ if __name__ == '__main__':
     # 5. Solve for global strains
     # 6. Convert global to local
     # 7. 
+    

@@ -1,4 +1,5 @@
 from material import Material
+from utils import T_z, transformation_3D
 
 import numpy as np
 from typing import Union
@@ -6,7 +7,7 @@ from typing import Union
 class Lamina:
     
     
-    def __init__(self, mat_fiber=None, mat_matrix=None, mat_composite=None, Vol_fiber=0, Vol_matrix=1, deg_orientation=None, thickness=0, array_geometry=1):
+    def __init__(self, mat_fiber=None, mat_matrix=None, mat_composite=None, Vol_fiber=0, Vol_matrix=1, deg_orientation=0, thickness=0, array_geometry=1):
         '''Create a single lamina using known fiber and matrix materials or assigned with a predetermined composite material.
         
         Parameters:
@@ -15,7 +16,7 @@ class Lamina:
             mat_composite (Material):  [Optional] Composite material object.
             Vol_fiber (float):  [Optional] Fiber volume fraction.
             Vol_matrix (float):  [Optional] Matrix volume fraction.
-            orientation (numpy.ndarray):  [Optional] Orientation vector in the z, y, x directions. 
+            orientation (numpy.ndarray):  [Optional] Degree measure of the lamina orientation, measured from the global axes. 
             array_geometry (int):  [Optional] Matrix array geometry constant.  1 = Hexagonal array, 2 = Square array.
         '''
         
@@ -27,12 +28,8 @@ class Lamina:
         self._Vol_m = Vol_matrix
         self.thickness = thickness
         
-        if deg_orientation is not None:
-            # Store orientation in radians 
-            self._orientation = deg_orientation*np.pi/180
-        else:
-            self._orientation = 0
-            # self._orientation = np.zeros(3)
+        # Store orientation in radians 
+        self._orientation = deg_orientation*np.pi/180
         
         # Create the composite from the fiber and matrix materials if a composite is not given
         # Alternatively, if only a matrix is given, its a uniform material
@@ -55,9 +52,9 @@ class Lamina:
             self._material = mat_composite
         
         # Assemble Compliance matrices
-        self.S = self._compliance_matrix_3D()
+        self.S = self.compliance_matrix()
         self.S_reduced = self._reduced_compliance_matrix()
-        self.S_bar = self._transformed_compliance_matrix()
+        self.S_bar = self.compliance_matrix(theta_rad=self._orientation)
         self.S_bar_reduced = self._transformed_compliance_matrix_2D()
         
         # Assemble stiffness matrices
@@ -67,7 +64,7 @@ class Lamina:
         self.Q_bar_reduced = np.linalg.inv(self.S_bar_reduced)
         
         
-    def _compliance_matrix_3D(self) -> np.ndarray:
+    def compliance_matrix(self, theta_rad: float=0) -> np.ndarray:
         '''
         Returns the orthotropic compliance matrix.
         
@@ -104,6 +101,11 @@ class Lamina:
         _S = np.zeros((6,6))
         _S[:3,:3] = _n * _norm
         _S[3:,3:] = _shear
+        
+        # Transformation matrix (defaults to identity if no rotation)
+        T = self.transformation_matrix_3D(theta_rad=theta_rad)
+        
+        _S = T.T.dot(_S).dot(T)
         
         return _S
     
@@ -143,8 +145,7 @@ class Lamina:
         return T
     
     
-    def transformation_matrix_3D(self) -> np.ndarray:
-        theta_rad: float = self._orientation
+    def transformation_matrix_3D(self, theta_rad=0) -> np.ndarray:
         
         c = np.cos(theta_rad)
         s = np.sin(theta_rad)
@@ -169,15 +170,15 @@ class Lamina:
         return S_bar_reduced
     
     
-    def _transformed_compliance_matrix(self) -> np.ndarray:
+    # def _transformed_compliance_matrix(self) -> np.ndarray:
         
         
-        T = self.transformation_matrix_3D()
+    #     T = self.transformation_matrix_3D(theta_rad=self._orientation)
         
-        S = self.S
-        S_bar = T.T.dot(S).dot(T)
+    #     S = self.S
+    #     S_bar = T.T.dot(S).dot(T)
         
-        return S_bar
+    #     return S_bar
     
     
     def _halpin_tsai(self, M_f, M_m, V_f, array_geometry=1) -> float:
@@ -369,3 +370,28 @@ class Lamina:
         E, v, G = self._material.get_properties()
         
         return E, v, G
+    
+    
+    def stress2strain(self, stress_tensor) -> np.ndarray:
+        '''
+        Conversion from stress tensor to strain vector.
+        
+            Parameters:
+                stress_tensor (numpy.ndarray):   Stress tensor 
+                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
+                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
+                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
+                
+            Returns:
+                strain_vec (numpy.ndarray):  Strain vector [E_1, E_2, E_3, g_23, g_13, g_12]
+        '''
+        
+        # Unpack tensor into a 6x1 column vector
+        _vec = np.array([*np.diag(stress_tensor), stress_tensor[1,2], stress_tensor[0,2], stress_tensor[0,1]])
+
+        # Create compliance matrix
+        _S = self.S
+
+        _strain_vec = _S.dot(_vec)
+
+        return _strain_vec
