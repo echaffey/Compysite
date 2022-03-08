@@ -1,14 +1,14 @@
 from lamina import Lamina
 from material import Material
-from utils import create_tensor_3D, T_z, to_epsilon, to_gamma
+from utils import create_tensor_3D, T_z, to_epsilon, to_gamma, tensor_to_vec
 
 import numpy as np
-from typing import Union
-
+from typing import Union, Type
 
 
 class Laminate:
     
+    array = Type[np.ndarray]
     
     def __init__(self, length=0, width=0):
         
@@ -25,7 +25,7 @@ class Laminate:
         self._width = width
     
     
-    def add_lamina(self, new_lamina: Lamina, orientation: float):
+    def add_lamina(self, new_lamina: Lamina, orientation: float=0):
         '''
         Adds a new lamina layer to the laminate stack.  Updates the dimensions of the laminate and 
         recalculates the net directional stresses acting on the laminate. 
@@ -41,6 +41,8 @@ class Laminate:
         
         self._thickness += new_lamina.thickness
         self._num_plys += 1
+        
+        new_lamina.set_orientation(orientation)
 
 
     def transformation_3D(self, tensor, rot_matrix, theta, theta_radians=False):
@@ -69,7 +71,7 @@ class Laminate:
         return _prime
     
     
-    def principal_stress_3D(stress_tensor) -> Union[np.ndarray, np.ndarray]:
+    def principal_stress_3D(stress_tensor: array) -> Union[array, array]:
         '''
         Returns the three principal stresses of a given tensor and their corresponding direction vectors.
         
@@ -98,7 +100,7 @@ class Laminate:
         return _p_val, _p_vec
 
 
-    def stress2strain(stress_tensor, lamina: Lamina, theta_deg: float=0) -> np.ndarray:
+    def stress2strain(self, stress_tensor, lamina: Lamina, theta_deg: float=0) -> np.ndarray:
         '''
         Conversion from stress tensor to strain vector.
         
@@ -149,7 +151,7 @@ class Laminate:
             
             # Transform global to local lamina stress
             local_lamina_stress = self.transformation_3D(stress_tensor, T_z, theta=theta_deg)
-            
+
             # Store the layer's stress state
             if i > len(self._layers['stress']):
                 self._layers['stress'].append(local_lamina_stress)
@@ -162,12 +164,16 @@ class Laminate:
                 self._layers['strain'].append(local_lamina_strain)
             else:
                 self._layers['strain'][i] = local_lamina_strain
-            
+
             # Epsilon tensor of local lamina strain
             e_local = to_epsilon(create_tensor_3D(*local_lamina_strain))
-            
+
             # Gamma values of global lamina strain
             e_global = to_gamma(self.transformation_3D(e_local, T_z, theta=-theta_deg))
+            
+            # Convert back to vector
+            e_global = tensor_to_vec(e_global)
+            
             if i > len(self._layers['global_strain']):
                 self._layers['global_strain'].append(e_global)
             else:

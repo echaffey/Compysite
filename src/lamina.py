@@ -2,12 +2,13 @@ from material import Material
 from utils import T_z, transformation_3D
 
 import numpy as np
+import matplotlib.pyplot as plt
 from typing import Union
 
 class Lamina:
     
     
-    def __init__(self, mat_fiber=None, mat_matrix=None, mat_composite=None, Vol_fiber=0, Vol_matrix=1, deg_orientation=0, thickness=0, array_geometry=1):
+    def __init__(self, mat_fiber=None, mat_matrix=None, mat_composite=None, Vol_fiber=0, Vol_matrix=1, thickness=0, array_geometry=1):
         '''Create a single lamina using known fiber and matrix materials or assigned with a predetermined composite material.
         
         Parameters:
@@ -16,7 +17,6 @@ class Lamina:
             mat_composite (Material):  [Optional] Composite material object.
             Vol_fiber (float):  [Optional] Fiber volume fraction.
             Vol_matrix (float):  [Optional] Matrix volume fraction.
-            orientation (numpy.ndarray):  [Optional] Degree measure of the lamina orientation, measured from the global axes. 
             array_geometry (int):  [Optional] Matrix array geometry constant.  1 = Hexagonal array, 2 = Square array.
         '''
         
@@ -29,7 +29,12 @@ class Lamina:
         self.thickness = thickness
         
         # Store orientation in radians 
-        self._orientation = deg_orientation*np.pi/180
+        self._orientation = 0
+        
+        self.S_bar         = None
+        self.S_bar_reduced = None
+        self.Q_bar         = None
+        self.Q_bar_reduced = None
         
         # Create the composite from the fiber and matrix materials if a composite is not given
         # Alternatively, if only a matrix is given, its a uniform material
@@ -54,12 +59,22 @@ class Lamina:
         # Assemble Compliance matrices
         self.S = self.compliance_matrix()
         self.S_reduced = self._reduced_compliance_matrix()
-        self.S_bar = self.compliance_matrix(theta_rad=self._orientation)
-        self.S_bar_reduced = self._transformed_compliance_matrix_2D()
         
         # Assemble stiffness matrices
         self.C = np.linalg.inv(self.S)
         self.C_reduced = np.linalg.inv(self.S_reduced)
+        
+        
+    def set_orientation(self, theta_deg: float=0) -> None:
+        
+        # Store orientation in radians
+        self._orientation = theta_deg*np.pi/180
+        
+        # Calculate transformed matrices
+        # REDUCED NEEDS TO BE UPDATED
+        self.S_bar = self.compliance_matrix(theta_rad=self._orientation)
+        self.S_bar_reduced = self._transformed_compliance_matrix_2D()
+        
         self.Q_bar = np.linalg.inv(self.S_bar)
         self.Q_bar_reduced = np.linalg.inv(self.S_bar_reduced)
         
@@ -395,3 +410,29 @@ class Lamina:
         _strain_vec = _S.dot(_vec)
 
         return _strain_vec
+    
+    
+    def plot_compliance(self, range_theta_rad):
+        
+        fig, (ax1, ax2) = plt.subplots(1,2)
+    
+        S11, S22, S12, S66, S26, S16 = [], [],[],[],[],[]
+        for theta in range_theta_rad:
+            S11.append(self.compliance_matrix(theta)[0,0])
+            S22.append(self.compliance_matrix(theta)[1,1])
+            S12.append(self.compliance_matrix(theta)[0,1])
+            S66.append(self.compliance_matrix(theta)[-1,-1])
+            S26.append(self.compliance_matrix(theta)[1,-1])
+            S16.append(self.compliance_matrix(theta)[0,-1])
+        
+        theta_range = range_theta_rad *180/np.pi
+        ax1.plot(theta_range, S11)
+        ax1.plot(theta_range, S22)
+        ax1.plot(theta_range, S12)
+        ax1.plot(theta_range, S66)
+        ax2.plot(theta_range, S26)
+        ax2.plot(theta_range, S16)
+
+        ax1.legend(['S11', 'S22', 'S12', 'S66'])
+        ax2.legend(['S26','S16'])
+        plt.show()
