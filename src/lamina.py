@@ -1,5 +1,4 @@
 from material import Material
-from utils import T_z, transformation_3D
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,7 +27,6 @@ class Lamina:
         self._Vol_m = Vol_matrix
         self.thickness = thickness
         
-        # Store orientation in radians 
         self._orientation = 0
         
         self.S_bar         = None
@@ -183,17 +181,6 @@ class Lamina:
         S_bar_reduced = T.T.dot(S).dot(T) 
         
         return S_bar_reduced
-    
-    
-    # def _transformed_compliance_matrix(self) -> np.ndarray:
-        
-        
-    #     T = self.transformation_matrix_3D(theta_rad=self._orientation)
-        
-    #     S = self.S
-    #     S_bar = T.T.dot(S).dot(T)
-        
-    #     return S_bar
     
     
     def _halpin_tsai(self, M_f, M_m, V_f, array_geometry=1) -> float:
@@ -386,6 +373,10 @@ class Lamina:
         
         return E, v, G
     
+    def get_material(self) -> Material:
+        
+        return self._material
+    
     
     def stress2strain(self, stress_tensor) -> np.ndarray:
         '''
@@ -410,6 +401,32 @@ class Lamina:
         _strain_vec = _S.dot(_vec)
 
         return _strain_vec
+    
+    def strain2stress(self, strain_tensor) -> np.ndarray:
+        '''
+        Conversion from strain tensor to stress vector. 
+        Strain must be in terms of gamma so pre-mulitiply the epsilon values by 2 for state of strain.
+        State of strain is a tensor in terms of epsilon.
+        
+            Parameters:
+                strain_tensor (numpy.ndarray):   Strain tensor in terms of gamma
+                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
+                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
+                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
+                
+            Returns:
+                stress_vec (numpy.ndarray):  Stress vector [s_1, s_2, s_3, t_23, t_13, t_12] 
+        '''
+        
+        # Unpack tensor into a 6x1 column vector
+        _vec = np.array([*np.diag(strain_tensor), strain_tensor[1,2], strain_tensor[0,2], strain_tensor[0,1]])
+
+        # Create stiffness matrix
+        _C = self.C
+
+        stress_vec = _C.dot(_vec)
+
+        return stress_vec
     
     
     def plot_compliance(self, range_theta_rad):

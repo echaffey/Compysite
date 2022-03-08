@@ -23,7 +23,7 @@ if __name__ == '__main__':
     sigma_123 = transformation_3D(sigma_xyz, T_z, 60)
  
     # Convert local stress to local strain
-    e_123 = lam.stress2strain(sigma_123, layer_1)
+    e_123 = layer_1.stress2strain(sigma_123)
 
     # Convert to epsilon tensor (MUST DO)
     e_123 = to_epsilon(create_tensor_3D(*e_123))
@@ -33,16 +33,12 @@ if __name__ == '__main__':
     e_xyz = to_gamma(transformation_3D(e_123, T_z, -60))
 
     # CORRECT ACCORDING TO NOTES
-    print(tensor_to_vec(e_xyz))
+    # print(tensor_to_vec(e_xyz))
 
-    lam.stress2strain_global_temp(sigma_xyz)
-    print(lam._layers['global_strain'][0])
-    print(tensor_to_vec(e_123))
-    # print(tensor_to_vec(sigma_123))
-    print(lam._layers['strain'][0])
+    abc = lam.stress2strain(sigma_xyz)
 
-    # print(comp.Laminate.strain2stress_global(e_xyz, layer_1).round(4))
-    
+    d = lam.strain2stress(create_tensor_3D(*abc))
+
     
     # 1. assign material properties
     # 2. Create material
