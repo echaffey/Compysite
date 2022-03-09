@@ -4,7 +4,7 @@ class Material:
     
     def __init__(self, E=None, v=None, G=None, alpha=None, beta=None, name=''):
         
-        E, v, G = self._type_check(E, v, G)
+        E, v, G, alpha, beta = self._type_check(E, v, G, alpha, beta)
         
         if np.sum(G) == 0:
             G = E/(2*(1+v))
@@ -47,6 +47,19 @@ class Material:
     def get_properties(self):
         
         return self._E, self._v, self._G
+    
+    
+    def set_thermal_expansion(self, new_alpha):
+        self._alpha = new_alpha
+        
+    
+    def set_hydro_expansion(self, new_beta):
+        self._beta = new_beta
+        
+        
+    def get_expansion_properties(self):
+        
+        return self._alpha, self._beta
     
     
     def set_elastic_modulus(self, new_E):

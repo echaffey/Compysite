@@ -1,4 +1,5 @@
 
+from typing import Union
 import numpy as np
 
 
@@ -71,6 +72,55 @@ def transformation_3D(tensor, rot_matrix, theta, theta_radians=False):
     
     return _prime
 
+
+def principal_angle_2D(tensor: np.ndarray) -> float:
+    '''
+    Returns the principal angle of the tensor in degrees.
+    
+        Parameters:
+            tensor (numpy.ndarray):  Cauchy tensor
+        Returns:
+            theta_p (numpy.ndarray):  Principal angle measure between coordinate axes and principal axes in degrees
+    '''
+    _tensor = tensor.copy()
+    
+    _x  = _tensor[0,0]
+    _y  = _tensor[1,1]
+    _xy = _tensor[0,1]
+    
+    _theta_p = 0.5*np.arctan(2*_xy/(_x-_y))
+
+    return _theta_p*180/np.pi
+
+
+def principal_stress_3D(stress_tensor: np.ndarray) -> Union[np.ndarray, np.ndarray]:
+    '''
+    Returns the three principal stresses of a given tensor and their corresponding direction vectors.
+    
+        Parameters:
+            stress_tensor (numpy.ndarray):  Stress tensor
+        Returns:
+            p_val (numpy.ndarray):  Array of ordered principal stress in descending value 
+            p_vec (numpy.ndarray):  Array of corresponding direction vectors
+    '''
+    _stress_tensor = stress_tensor.copy()
+    
+    # Principal stresses and thier corresponding vectors
+    _e_val, _e_vec = np.linalg.eig(_stress_tensor)
+    
+    # Sort the principal stresses in ascending order
+    _p3, _p2, _p1 = np.sort(_e_val)
+    
+    # Correlate the sorted stresses with their vectors
+    _e_val_l = _e_val.tolist()
+    _p1_index, _p2_index, _p3_index = _e_val_l.index(_p1), _e_val_l.index(_p2), _e_val_l.index(_p3)
+    _p1_vec, _p2_vec, _p3_vec = _e_vec[:,_p1_index], _e_vec[:,_p2_index], _e_vec[:,_p3_index]
+    
+    # Assembble two vectors containing the principal stresses and their dirctional vectors
+    _p_val, _p_vec = np.array([_p1,_p2,_p3]), np.array([_p1_vec, _p2_vec, _p3_vec])
+    
+    return _p_val, _p_vec
+    
 
 def to_gamma(strain_tensor) -> np.ndarray:
     '''
