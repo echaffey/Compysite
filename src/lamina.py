@@ -36,6 +36,14 @@ class Lamina:
         self.Q_bar         = None
         self.Q_bar_reduced = None
         
+        self.state = {'stress':[],
+                      'strain':[],
+                      'E':[],
+                      'v':[],
+                      'G':[],
+                      'alpha':[],
+                      'beta':[]}
+        
         # Create the composite from the fiber and matrix materials if a composite is not given
         # Alternatively, if only a matrix is given, its a uniform material
         if mat_composite is None:
@@ -50,6 +58,7 @@ class Lamina:
                 
                 alpha = self._composite_thermal_expansion(mat_fiber, mat_matrix)
                 self._material.set_thermal_expansion(alpha)
+                # self.state['alpha'].append(alpha)
                 
             elif mat_matrix is not None:
                 self._material = mat_matrix
@@ -66,6 +75,9 @@ class Lamina:
         # Assemble stiffness matrices
         self.C = np.linalg.inv(self.S)
         self.C_reduced = np.linalg.inv(self.S_reduced)
+        
+        # Set the initial values of the transformation matrices from the default orientation (0 degrees)
+        self.set_orientation(self._orientation)
         
         
     def set_orientation(self, theta_deg: float=0) -> None:

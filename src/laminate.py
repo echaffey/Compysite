@@ -32,7 +32,6 @@ class Laminate:
         - Layers: {self._num_plys}
         - Orientation:  {'/'.join([str(theta) for theta in self._layers['orientation']])}
         '''
-        
         return desc
         
         
@@ -59,6 +58,7 @@ class Laminate:
         self._thickness += new_lamina.thickness
         self._num_plys += 1
         
+        # Sets the orientation to calculate the transformed matrices
         new_lamina.set_orientation(orientation)
 
 
@@ -180,13 +180,4 @@ class Laminate:
         sigma = 0
         epsilon = 0
         return sigma, epsilon
-    
-    def global_compliance_matrix(self):
-        # S_bar
-        pass
-    
-    def global_stiffness_matrix(self):
-        # Q_bar
-        # inverse compliance
-        pass
     
