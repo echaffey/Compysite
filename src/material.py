@@ -1,106 +1,51 @@
 import numpy as np
+from dataclasses import dataclass
+from properties import MaterialProperties, type_check
 
 class Material:
     
     def __init__(self, E=None, v=None, G=None, alpha=None, beta=None, name=''):
         
-        E, v, G, alpha, beta = self._type_check(E, v, G, alpha, beta)
+        props = MaterialProperties(E, v, G, alpha, beta, name)
+        props = type_check(props)
         
-        if np.sum(G) == 0:
-            G = E/(2*(1+v))
+        if np.sum(props.G) == 0:
+            props.G = props.E/(2*(1+props.v))
         
-        self._E = E
-        self._v = v
-        self._G = G
-        self._alpha = alpha
-        self._beta = beta
-        self._name = name
+        self.props = props
         
     def __str__(self):
         desc = f'''
         - Material Properties - 
-            Name: {self._name}
+            Name: {self.props.name}
             
-            E1:   {(self._E[0]*1e-9).round(3) if self._E is not None else '-'} GPa
-            E2:   {(self._E[1]*1e-9).round(3) if self._E is not None else '-'} GPa
-            E3:   {(self._E[2]*1e-9).round(3) if self._E is not None else '-'} GPa
+            E1:   {(self.props.E[0]*1e-9).round(3) if self.props.E is not None else '-'} GPa
+            E2:   {(self.props.E[1]*1e-9).round(3) if self.props.E is not None else '-'} GPa
+            E3:   {(self.props.E[2]*1e-9).round(3) if self.props.E is not None else '-'} GPa
             
-            v23:  {self._v[0] if self._v is not None else '-'}
-            v13:  {self._v[1] if self._v is not None else '-'}
-            v12:  {self._v[2] if self._v is not None else '-'}
+            v23:  {self.props.v[0] if self.props.v is not None else '-'}
+            v13:  {self.props.v[1] if self.props.v is not None else '-'}
+            v12:  {self.props.v[2] if self.props.v is not None else '-'}
             
-            G23:  {(self._G[0]*1e-9).round(3) if self._G is not None else '-'} GPa
-            G13:  {(self._G[1]*1e-9).round(3) if self._G is not None else '-'} GPa
-            G12:  {(self._G[2]*1e-9).round(3) if self._G is not None else '-'} GPa
+            G23:  {(self.props.G[0]*1e-9).round(3) if self.props.G is not None else '-'} GPa
+            G13:  {(self.props.G[1]*1e-9).round(3) if self.props.G is not None else '-'} GPa
+            G12:  {(self.props.G[2]*1e-9).round(3) if self.props.G is not None else '-'} GPa
             
-            a1:   {(self._alpha[0]*1e6).round(3) if self._alpha is not None else '-'} * 1e-6 1/C
-            a2:   {(self._alpha[1]*1e6).round(3) if self._alpha is not None else '-'} * 1e-6 1/C
-            a3:   {(self._alpha[2]*1e6).round(3) if self._alpha is not None else '-'} * 1e-6 1/C
+            a1:   {(self.props.alpha[0]*1e6).round(3) if self.props.alpha is not None else '-'} * 1e-6 1/C
+            a2:   {(self.props.alpha[1]*1e6).round(3) if self.props.alpha is not None else '-'} * 1e-6 1/C
+            a3:   {(self.props.alpha[2]*1e6).round(3) if self.props.alpha is not None else '-'} * 1e-6 1/C
             
-            b1:   {(self._beta[0]*1e6).round(3) if self._beta is not None else '-'} * 1e-6 
-            b2:   {(self._beta[1]*1e6).round(3) if self._beta is not None else '-'} * 1e-6
-            b3:   {(self._beta[2]*1e6).round(3) if self._beta is not None else '-'} * 1e-6
+            b1:   {(self.props.beta[0]*1e6).round(3) if self.props.beta is not None else '-'} * 1e-6 
+            b2:   {(self.props.beta[1]*1e6).round(3) if self.props.beta is not None else '-'} * 1e-6
+            b3:   {(self.props.beta[2]*1e6).round(3) if self.props.beta is not None else '-'} * 1e-6
         
         '''
         return desc
         
     def get_properties(self):
         
-        return self._E, self._v, self._G
+        return self.props.E, self.props.v, self.props.G
     
-    
-    def set_thermal_expansion(self, new_alpha):
-        self._alpha = new_alpha
-        
-    
-    def set_hydro_expansion(self, new_beta):
-        self._beta = new_beta
-        
-        
-    def get_expansion_properties(self):
-        
-        return self._alpha, self._beta
-    
-    
-    def set_elastic_modulus(self, new_E):
-        
-        self._E = self._type_check(new_E)
-    
-        
-    def set_poisson_ratio(self, new_v):
-        
-        self._v = self._type_check(new_v)
-    
-        
-    def set_shear_modulus(self, new_G):
-        
-        self._G = self._type_check(new_G)
-        
-    
-    def _type_check(self, *args):
-        '''
-        Create vectors for variables that are passed in as single values
-        '''
-        _out = None
-        
-        for arg in args:
-            if isinstance(arg, (float, int)):
-                if _out is None:
-                    _out = np.ones(3)*arg
-                else:
-                    _out = np.vstack([_out, np.ones(3)*arg])
-            elif arg is None:
-                if _out is None:
-                    _out = np.zeros(3)
-                else:
-                    _out = np.vstack([_out, np.zeros(3)])
-            else:
-                if _out is None:
-                    _out = np.array(arg)
-                else:
-                    _out = np.vstack([_out, arg])
-        
-        return _out
     
     def poisson_tensor(self):
         
@@ -114,3 +59,7 @@ class Material:
         return np.array([[0, v21, v31],
                          [v12, 0, v32],
                          [v13, v23, 0]])
+        
+        
+class CompositeMaterial:
+    pass

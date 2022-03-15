@@ -55,7 +55,7 @@ class Laminate:
         self._layers['global_stress'].append(None)
         self._layers['global_strain'].append(None)
         
-        self._thickness += new_lamina.thickness
+        self._thickness += new_lamina.props.thickness
         self._num_plys += 1
         
         # Sets the orientation to calculate the transformed matrices

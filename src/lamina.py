@@ -3,6 +3,8 @@ from material import Material
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union
+from properties import LaminaProperties, StateProperties, ConversionMatrices
+
 
 class Lamina:
     
@@ -19,31 +21,6 @@ class Lamina:
             array_geometry (int):  [Optional] Matrix array geometry constant.  1 = Hexagonal array, 2 = Square array.
         '''
         
-        self._material = None
-        self._material_fiber = mat_fiber
-        self._material_matrix = mat_matrix
-        
-        self._Vol_f = Vol_fiber
-        self._Vol_m = Vol_matrix
-        self.thickness = thickness
-        
-        self._orientation = 0
-        self._stress = 0
-        self._strain = 0
-        
-        self.S_bar         = None
-        self.S_bar_reduced = None
-        self.Q_bar         = None
-        self.Q_bar_reduced = None
-        
-        self.state = {'stress':[],
-                      'strain':[],
-                      'E':[],
-                      'v':[],
-                      'G':[],
-                      'alpha':[],
-                      'beta':[]}
-        
         # Create the composite from the fiber and matrix materials if a composite is not given
         # Alternatively, if only a matrix is given, its a uniform material
         if mat_composite is None:
@@ -54,151 +31,33 @@ class Lamina:
                 # -------------------
                 
                 # Create composite from the fiber and matrix materials
-                self._material = self._create_composite(mat_fiber, mat_matrix, array_geometry)
+                material = self._create_composite(mat_fiber, mat_matrix, array_geometry)
                 
-                alpha = self._composite_thermal_expansion(mat_fiber, mat_matrix)
-                self._material.set_thermal_expansion(alpha)
+                # alpha = self._composite_thermal_expansion(mat_fiber, mat_matrix)
+                # self._material.set_thermal_expansion(alpha)
                 # self.state['alpha'].append(alpha)
                 
             elif mat_matrix is not None:
-                self._material = mat_matrix
+                material = mat_matrix
             else:
-                self._material = mat_composite
+                material = mat_composite
                 print('You must create at least one material that is not a fiber.')
         else:
-            self._material = mat_composite
+            material = mat_composite
         
-        # Assemble Compliance matrices
-        self.S = self.compliance_matrix()
-        self.S_reduced = self._reduced_compliance_matrix()
-        
-        # Assemble stiffness matrices
-        self.C = np.linalg.inv(self.S)
-        self.C_reduced = np.linalg.inv(self.S_reduced)
-        
-        # Set the initial values of the transformation matrices from the default orientation (0 degrees)
-        self.set_orientation(self._orientation)
+        self.props = LaminaProperties(material.props, mat_fiber, mat_matrix, Vol_fiber, Vol_matrix, thickness, 0)
+        self.state = StateProperties(0, 0)        
+        self.matrices = ConversionMatrices(self.props.material)
         
         
     def set_orientation(self, theta_deg: float=0) -> None:
         
         # Store orientation in radians
-        self._orientation = theta_deg*np.pi/180
+        self.props.orientation = theta_deg*np.pi/180
         
-        # Calculate transformed matrices
-        # REDUCED NEEDS TO BE UPDATED
-        self.S_bar = self.compliance_matrix(theta_rad=self._orientation)
-        self.S_bar_reduced = self._transformed_compliance_matrix_2D()
-        
-        self.Q_bar = np.linalg.inv(self.S_bar)
-        self.Q_bar_reduced = np.linalg.inv(self.S_bar_reduced)
-        
-        
-    def compliance_matrix(self, theta_rad: float=0) -> np.ndarray:
-        '''
-        Returns the orthotropic compliance matrix.
-        
-        Parameters:
-            E (np.ndarray): Vector of the elastic moduli for each of the principal directions [E1, E2, E3]
-            v (np.ndarray): Vector of Poisson's ratio for each of the principal directions [v23, v13, v12]
-            G (np.ndarray): Vector of the shear moduli for each fo the principal directions [G23, G13, G12]
-            
-        Returns:
-            S (np.ndarray): Compliance matrix describing the material in the 3 principal directions
-        '''
-            
-        E, v, G = self.get_lamina_properties()
-            
-        # Unpack the Poisson's ratio values
-        _v23, _v13, _v12 = v
-        
-        # Create the 3x3 linear-elastic stress relationship
-        _norm = np.ones((3,3))*(1/E)
-        _n  = np.eye(3)
-        
-        # Relationships between elastic modulii and Poison's ratio
-        _n[0,1] = -E[1]/E[0]*_v12
-        _n[1,0] = -_v12
-        _n[0,2] = -E[2]/E[0]*_v13
-        _n[2,0] = -_v13
-        _n[1,2] = -E[1]/E[2]*_v23
-        _n[2,1] = -_v23
-
-        # Create the 3x3 shear relationship
-        _shear = np.eye(3) / G
-
-        # Combine all into compliance matrix
-        _S = np.zeros((6,6))
-        _S[:3,:3] = _n * _norm
-        _S[3:,3:] = _shear
-        
-        # Transformation matrix (defaults to identity if no rotation)
-        T = self.transformation_matrix_3D(theta_rad=theta_rad)
-        
-        _S = T.T.dot(_S).dot(T)
-        
-        return _S
-    
-    
-    def _reduced_compliance_matrix(self) -> np.ndarray:
-        '''
-        Returns the planar compliance matrix.
-        
-        Parameters:
-            E (np.ndarray): Vector of the elastic moduli for each of the principal directions
-            v (np.ndarray): Vector of Poisson's ratio for each of the principal directions [v23, v13, v12]
-            G (np.ndarray): Vector of the shear moduli for each fo the principal directions [G23, G13, G12]
-            
-        Returns:
-            S (np.ndarray): Planar (reduced) compliance matrix 
-        '''
-        
-        S = self.S
-        
-        _S_r = np.zeros((3,3))
-        _S_r[:2, :2] = S[:2, :2]
-        _S_r[2,2] = S[-1, -1]
-        
-        return _S_r
-    
-    
-    def transformation_matrix_2D(self) -> np.ndarray:
-        theta_rad: float = self._orientation
-        
-        c = np.cos(theta_rad)
-        s = np.sin(theta_rad)
-        
-        T = np.array([[c**2, s**2, 2*c*s], 
-                    [s**2, c**2, -2*c*s], 
-                    [-c*s, c*s, c**2-s**2]])
-        
-        return T
-    
-    
-    def transformation_matrix_3D(self, theta_rad=0) -> np.ndarray:
-        
-        c = np.cos(theta_rad)
-        s = np.sin(theta_rad)
-        
-        T = np.array([[c**2, s**2, 0, 0, 0, 2*c*s], 
-                    [s**2, c**2, 0, 0, 0, -2*c*s],
-                    [0, 0, 1, 0, 0, 0],
-                    [0, 0, 0, c, s, 0],
-                    [0, 0, 0, -s, c, 0], 
-                    [-c*s, c*s, 0, 0, 0, c**2-s**2]])
-        
-        return T
-    
-    def _transformed_compliance_matrix_2D(self) -> np.ndarray:
-        
-        
-        T = self.transformation_matrix_2D()
-        
-        S = self.S_reduced
-        S_bar_reduced = T.T.dot(S).dot(T) 
-        
-        return S_bar_reduced
-    
+        # Updates transformation matrices with new orientation
+        self.matrices.update_orientation(self.props.orientation)
+         
     
     def _halpin_tsai(self, M_f, M_m, V_f, array_geometry=1) -> float:
         '''
@@ -379,7 +238,7 @@ class Lamina:
         
         return np.array([_alpha_1, _alpha_2, _alpha_3])
 
-    def _create_composite(self, mat_fiber, mat_matrix, array_geometry=1) -> None:
+    def _create_composite(self, mat_fiber, mat_matrix, array_geometry=1) -> Material:
         '''
         Returns the effective material properties (elastic modulus, Poisson's ratio and shear modulus) for the composite material.
         
@@ -407,13 +266,16 @@ class Lamina:
         # Calculate the composite Poisson's ratio
         _v = self._composite_poisson_ratio(_E, _G, mat_fiber, mat_matrix)
         
+        # Calculate the composite thermal expansion ratio
+        _alpha = self._composite_thermal_expansion(mat_fiber, mat_matrix)
+        
         # Return the created composite
-        return Material(_E, _v, _G)
+        return Material(_E, _v, _G, _alpha)
     
     
     def get_lamina_properties(self) -> Union[np.ndarray, np.ndarray, np.ndarray]:
         
-        E, v, G = self._material.get_properties()
+        E, v, G = self.props.material.get_properties()
         
         return E, v, G
     
@@ -425,7 +287,7 @@ class Lamina:
     
     def get_material(self) -> Material:
         
-        return self._material
+        return self.props.material
     
     
     def stress2strain(self, stress_tensor) -> np.ndarray:

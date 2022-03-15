@@ -1,5 +1,3 @@
-from venv import create
-from cv2 import add
 from Compysite import Material, Lamina, Laminate
 
 import numpy as np
@@ -100,7 +98,7 @@ if __name__ == '__main__':
     
     # print(principal_angle_2D(s))
     
-    T = layer_1.transformation_matrix_3D(60*np.pi/180)
+    T = layer_1.matrices.transformation_matrix_3D(60*np.pi/180)
     
     T_inv = np.linalg.inv(T)
     
