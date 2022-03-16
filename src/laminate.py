@@ -8,18 +8,19 @@ from typing import Union
 
 
 class Laminate:
-
     def __init__(self, length=0, width=0):
 
         self._num_plys = 0
-        self._layers = {'lamina': [],
-                        'orientation': [],
-                        'material': [],
-                        'local_stress': [None],
-                        'local_strain': [None],
-                        'global_stress': [None],
-                        'global_strain': [None],
-                        'global_props': [None]}
+        self._layers = {
+            'lamina': [],
+            'orientation': [],
+            'material': [],
+            'local_stress': [None],
+            'local_strain': [None],
+            'global_stress': [None],
+            'global_strain': [None],
+            'global_props': [None],
+        }
         self._thickness = 0
         self._length = length
         self._width = width
@@ -75,7 +76,7 @@ class Laminate:
         _tensor = tensor.copy()
 
         # Convert to radians and evaluate the rotation matrix
-        _theta = theta if theta_radians else theta * np.pi/180
+        _theta = theta if theta_radians else theta * np.pi / 180
         _R = rot_matrix(_theta)
 
         # Transformation equation
@@ -105,11 +106,11 @@ class Laminate:
 
             # Transform global to local lamina stress
             local_lamina_stress = self.transformation_3D(
-                stress_tensor, T_z, theta=theta_deg)
+                stress_tensor, T_z, theta=theta_deg
+            )
 
             # Store the layer's stress state
-            self._layers['local_stress'][i] = tensor_to_vec(
-                local_lamina_stress)
+            self._layers['local_stress'][i] = tensor_to_vec(local_lamina_stress)
 
             # Convert local stress to local strain and store the value
             local_lamina_strain = lamina.stress2strain(local_lamina_stress)
@@ -119,8 +120,7 @@ class Laminate:
             e_local = to_epsilon(create_tensor_3D(*local_lamina_strain))
 
             # Gamma values of global laminate strain
-            e_global = to_gamma(self.transformation_3D(
-                e_local, T_z, theta=-theta_deg))
+            e_global = to_gamma(self.transformation_3D(e_local, T_z, theta=-theta_deg))
 
             # Convert back to vector
             e_global = tensor_to_vec(e_global)
@@ -154,9 +154,9 @@ class Laminate:
             # Transform global to local lamina strain and store it
             strain_tensor = to_epsilon(strain_tensor)
             local_lamina_strain = self.transformation_3D(
-                strain_tensor, T_z, theta=theta_deg)
-            self._layers['local_strain'][i] = tensor_to_vec(
-                local_lamina_strain)
+                strain_tensor, T_z, theta=theta_deg
+            )
+            self._layers['local_strain'][i] = tensor_to_vec(local_lamina_strain)
 
             # Convert local strain to local stress and store the value
             local_lamina_strain = to_gamma(local_lamina_strain)
@@ -166,7 +166,8 @@ class Laminate:
             # Global laminate stress
             local_lamina_stress = create_tensor_3D(*local_lamina_stress)
             sigma_global = self.transformation_3D(
-                local_lamina_stress, T_z, theta=-theta_deg)
+                local_lamina_stress, T_z, theta=-theta_deg
+            )
             sigma_global = tensor_to_vec(sigma_global)
 
             # Store the global laminate stress

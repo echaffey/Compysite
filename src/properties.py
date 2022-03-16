@@ -71,7 +71,9 @@ class ConversionMatrices:
         Q_bar = np.linalg.inv(S_bar)
         Q_bar_reduced = np.linalg.inv(S_bar_reduced)
 
-    def compliance_matrix(self, props: MaterialProperties, theta_rad: float = 0) -> np.ndarray:
+    def compliance_matrix(
+        self, props: MaterialProperties, theta_rad: float = 0
+    ) -> np.ndarray:
         '''
         Returns the orthotropic compliance matrix.
 
@@ -90,15 +92,15 @@ class ConversionMatrices:
         _v23, _v13, _v12 = v
 
         # Create the 3x3 linear-elastic stress relationship
-        _norm = np.ones((3, 3))*(1/E)
+        _norm = np.ones((3, 3)) * (1 / E)
         _n = np.eye(3)
 
         # Relationships between elastic modulii and Poison's ratio
-        _n[0, 1] = -E[1]/E[0]*_v12
+        _n[0, 1] = -E[1] / E[0] * _v12
         _n[1, 0] = -_v12
-        _n[0, 2] = -E[2]/E[0]*_v13
+        _n[0, 2] = -E[2] / E[0] * _v13
         _n[2, 0] = -_v13
-        _n[1, 2] = -E[1]/E[2]*_v23
+        _n[1, 2] = -E[1] / E[2] * _v23
         _n[2, 1] = -_v23
 
         # Create the 3x3 shear relationship
@@ -142,9 +144,13 @@ class ConversionMatrices:
         c = np.cos(theta_rad)
         s = np.sin(theta_rad)
 
-        T = np.array([[c**2, s**2, 2*c*s],
-                      [s**2, c**2, -2*c*s],
-                      [-c*s, c*s, c**2-s**2]])
+        T = np.array(
+            [
+                [c ** 2, s ** 2, 2 * c * s],
+                [s ** 2, c ** 2, -2 * c * s],
+                [-c * s, c * s, c ** 2 - s ** 2],
+            ]
+        )
 
         return T
 
@@ -153,12 +159,16 @@ class ConversionMatrices:
         c = np.cos(theta_rad)
         s = np.sin(theta_rad)
 
-        T = np.array([[c**2, s**2, 0, 0, 0, 2*c*s],
-                      [s**2, c**2, 0, 0, 0, -2*c*s],
-                      [0, 0, 1, 0, 0, 0],
-                      [0, 0, 0, c, s, 0],
-                      [0, 0, 0, -s, c, 0],
-                      [-c*s, c*s, 0, 0, 0, c**2-s**2]])
+        T = np.array(
+            [
+                [c ** 2, s ** 2, 0, 0, 0, 2 * c * s],
+                [s ** 2, c ** 2, 0, 0, 0, -2 * c * s],
+                [0, 0, 1, 0, 0, 0],
+                [0, 0, 0, c, s, 0],
+                [0, 0, 0, -s, c, 0],
+                [-c * s, c * s, 0, 0, 0, c ** 2 - s ** 2],
+            ]
+        )
 
         return T
 
@@ -196,7 +206,7 @@ def type_check(properties: Properties) -> Properties:
         arg = getattr(p, field.name)
 
         if isinstance(arg, (float, int)):
-            setattr(p, field.name, np.ones(3)*arg)
+            setattr(p, field.name, np.ones(3) * arg)
 
         elif arg is None:
             setattr(p, field.name, np.zeros(3))

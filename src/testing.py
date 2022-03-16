@@ -3,7 +3,16 @@ from Compysite import Material, Lamina, Laminate
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import create_tensor_3D, transformation_3D, T_z, to_epsilon, to_gamma, tensor_to_vec, principal_stress_3D, principal_angle_2D
+from utils import (
+    create_tensor_3D,
+    transformation_3D,
+    T_z,
+    to_epsilon,
+    to_gamma,
+    tensor_to_vec,
+    principal_stress_3D,
+    principal_angle_2D,
+)
 
 
 def main():
@@ -47,11 +56,11 @@ def main():
     # 6. Convert global to local
     # 7.
 
-    T = layer_1.matrices.transformation_matrix_3D(60*np.pi/180)
+    T = layer_1.matrices.transformation_matrix_3D(60 * np.pi / 180)
 
     T_inv = np.linalg.inv(T)
 
-    alpha = np.array([8.6, 22.1, 0, 0, 0, 0])*1e-6
+    alpha = np.array([8.6, 22.1, 0, 0, 0, 0]) * 1e-6
 
     print(T_inv.dot(alpha))
 
