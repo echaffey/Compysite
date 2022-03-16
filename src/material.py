@@ -2,18 +2,19 @@ import numpy as np
 from dataclasses import dataclass
 from properties import MaterialProperties, type_check
 
+
 class Material:
-    
+
     def __init__(self, E=None, v=None, G=None, alpha=None, beta=None, name=''):
-        
+
         props = MaterialProperties(E, v, G, alpha, beta, name)
         props = type_check(props)
-        
+
         if np.sum(props.G) == 0:
             props.G = props.E/(2*(1+props.v))
-        
+
         self.props = props
-        
+
     def __str__(self):
         desc = f'''
         - Material Properties - 
@@ -41,25 +42,20 @@ class Material:
         
         '''
         return desc
-        
+
     def get_properties(self):
-        
+
         return self.props.E, self.props.v, self.props.G
-    
-    
+
     def poisson_tensor(self):
-        
+
         v23, v13, v12 = self._v
         E1, E2, E3 = self._E
-        
+
         v21 = v12*E2/E1
         v31 = v13*E3/E1
         v32 = v23*E3/E2
-        
+
         return np.array([[0, v21, v31],
                          [v12, 0, v32],
                          [v13, v23, 0]])
-        
-        
-class CompositeMaterial:
-    pass
