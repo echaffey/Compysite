@@ -108,7 +108,8 @@ class Laminate:
             # Retrieve the selected layer's orientation
             theta_deg = lamina.props.orientation
 
-            print(lamina.matrices.S_bar.dot(tensor_to_vec(stress_tensor)))
+            lamina.apply_stress(stress_tensor)
+            # print(lamina.matrices.S_bar.dot(tensor_to_vec(stress_tensor)))
             # Transform global to local lamina stress
             s_local = self.transformation_3D(stress_tensor, T_z, theta=theta_deg)
 
@@ -129,7 +130,8 @@ class Laminate:
             self.global_state.append(StateProperties(s_global, e_global))
 
             # Store the local lamina stress and strain state
-            lamina.local_state.append(StateProperties(s_local, local_lamina_strain))
+            print(StateProperties(tensor_to_vec(s_local), local_lamina_strain))
+            # lamina.local_state = StateProperties(s_local, local_lamina_strain)
 
         return e_global
 

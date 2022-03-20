@@ -15,8 +15,8 @@ class MaterialProperties:
 
 @dataclass
 class StateProperties:
-    stress: np.ndarray = np.zeros(3)
-    strain: np.ndarray = np.zeros(3)
+    stress: np.ndarray = None
+    strain: np.ndarray = None
 
 
 @dataclass

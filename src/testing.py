@@ -20,7 +20,8 @@ def main():
     sigma = create_tensor_3D(30, 15, 5)
 
     lam.stress2strain(sigma)
-    print(lam.global_state)
+    # print(lam.global_state)
+    print(layer_1.local_state)
 
     # print(layer_1.matrices.S_bar.dot(tensor_to_vec(sigma)))
 

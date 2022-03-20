@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from typing import Union, List
 from properties import LaminaProperties, StateProperties, ConversionMatrices
 from compositeMaterial import CompositeMaterial
+from utils import tensor_to_vec, T_z, transformation_3D
 
 
 class Lamina(CompositeMaterial):
@@ -54,7 +55,7 @@ class Lamina(CompositeMaterial):
         )
 
         # Initialize the stress and strain states
-        self.local_state: List[StateProperties] = []
+        self.local_state: StateProperties = StateProperties()
 
         # Initialize the compliance and stiffness matrices with default orientation at 0 degrees
         self.matrices = ConversionMatrices(self.props.material)
@@ -73,6 +74,28 @@ class Lamina(CompositeMaterial):
         # Updates transformation matrices with new orientation
         self.matrices.update_orientation(self.props.orientation)
 
+    def apply_stress(self, stress_tensor: np.ndarray) -> None:
+        '''
+        Updates the local stress and strain state from a given globally applied stress.
+
+        Args:
+            stress_tensor (np.ndarray): Global stress tensor being applied.
+        '''
+
+        # Global lamina orientation
+        theta_rad = self.props.orientation
+
+        # Convert global to local stress
+        local_stress_tensor = transformation_3D(
+            stress_tensor, T_z, theta_rad, theta_radians=True
+        )
+
+        local_stress = tensor_to_vec(local_stress_tensor)
+
+        local_strain = self.stress2strain(local_stress_tensor)
+
+        self.local_state = StateProperties(local_stress, local_strain)
+
     def stress2strain(self, stress_tensor: np.ndarray) -> np.ndarray:
         '''
         Conversion from stress tensor to strain vector.
@@ -88,14 +111,7 @@ class Lamina(CompositeMaterial):
         '''
 
         # Unpack tensor into a 6x1 column vector
-        stress_vec = np.array(
-            [
-                *np.diag(stress_tensor),
-                stress_tensor[1, 2],
-                stress_tensor[0, 2],
-                stress_tensor[0, 1],
-            ]
-        )
+        stress_vec = tensor_to_vec(stress_tensor)
 
         # Create compliance matrix
         S = self.matrices.S
