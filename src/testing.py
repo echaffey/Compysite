@@ -3,16 +3,7 @@ from Compysite import Material, Lamina, Laminate
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import (
-    create_tensor_3D,
-    transformation_3D,
-    T_z,
-    to_epsilon,
-    to_gamma,
-    tensor_to_vec,
-    principal_stress_3D,
-    principal_angle_2D,
-)
+from utils import create_tensor_3D, tensor_to_vec
 
 
 def main():
@@ -25,6 +16,13 @@ def main():
     mat = Material(E, v, G)
     layer_1 = Lamina(mat_composite=mat)
     lam.add_lamina(layer_1, 0)
+
+    sigma = create_tensor_3D(30, 15, 5)
+
+    lam.stress2strain(sigma)
+    print(lam.global_state)
+
+    # print(layer_1.matrices.S_bar.dot(tensor_to_vec(sigma)))
 
     # Create global applied stress
     # sigma_xyz = create_tensor_3D(-3.5, 7, 0, 0, 0, -1.4)
@@ -56,13 +54,13 @@ def main():
     # 6. Convert global to local
     # 7.
 
-    T = layer_1.matrices.transformation_matrix_3D(60 * np.pi / 180)
+    # T = layer_1.matrices.transformation_matrix_3D(60 * np.pi / 180)
 
-    T_inv = np.linalg.inv(T)
+    # T_inv = np.linalg.inv(T)
 
-    alpha = np.array([8.6, 22.1, 0, 0, 0, 0]) * 1e-6
+    # alpha = np.array([8.6, 22.1, 0, 0, 0, 0]) * 1e-6
 
-    print(T_inv.dot(alpha))
+    # print(T_inv.dot(alpha))
 
 
 if __name__ == '__main__':

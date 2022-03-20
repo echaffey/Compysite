@@ -1,29 +1,32 @@
-from threading import local
 from lamina import Lamina
 from material import Material
+from properties import LaminateProperties, LaminaProperties, StateProperties
 from utils import create_tensor_3D, T_z, to_epsilon, to_gamma, tensor_to_vec
 
 import numpy as np
-from typing import Union
+from typing import Union, List
 
 
 class Laminate:
     def __init__(self, length=0, width=0):
 
         self._num_plys = 0
-        self._layers = {
-            'lamina': [],
-            'orientation': [],
-            'material': [],
-            'local_stress': [None],
-            'local_strain': [None],
-            'global_stress': [None],
-            'global_strain': [None],
-            'global_props': [None],
-        }
+        # self._layers = {
+        #     'lamina': [],
+        #     'orientation': [],
+        #     'material': [],
+        #     'local_stress': [None],
+        #     'local_strain': [None],
+        #     'global_stress': [None],
+        #     'global_strain': [None],
+        #     'global_props': [None],
+        # }
+        self.props = LaminateProperties(length=length, width=width)
         self._thickness = 0
         self._length = length
         self._width = width
+        self.lamina: List[LaminaProperties] = []
+        self.global_state: List[StateProperties] = []
 
     def __str__(self):
 
@@ -33,31 +36,32 @@ class Laminate:
         '''
         return desc
 
-    def add_lamina(self, new_lamina: Lamina, orientation: float = 0) -> None:
+    def add_lamina(self, new_lamina: Lamina, orientation_deg: float = 0) -> None:
         '''
         Adds a new lamina layer to the laminate stack.  Updates the dimensions of the laminate and 
         recalculates the net directional stresses acting on the laminate. 
 
             Parameters:
                 new_lamina (Lamina):         the constructed lamina object to be added to the laminate.
-                orientation (numpy.ndarray): orientation vector of the fiber directions relative to the 
-                                             principal axes in the z, y, x directions. 
+                orientation_deg (numpy.ndarray): orientation of the fiber directions in degrees relative to the 
+                                                 principal axes in the z, y, x directions. 
         '''
 
         # Initialize new layer properties
-        self._layers['lamina'].append(new_lamina)
-        self._layers['orientation'].append(orientation)
-        self._layers['material'].append(new_lamina.get_material())
-        self._layers['local_stress'].append(None)
-        self._layers['local_strain'].append(None)
-        self._layers['global_stress'].append(None)
-        self._layers['global_strain'].append(None)
-
-        self._thickness += new_lamina.props.thickness
-        self._num_plys += 1
+        # self._layers['lamina'].append(new_lamina)
+        # self._layers['orientation'].append(orientation_deg)
+        # self._layers['material'].append(new_lamina.get_material())
+        # self._layers['local_stress'].append(None)
+        # self._layers['local_strain'].append(None)
+        # self._layers['global_stress'].append(None)
+        # self._layers['global_strain'].append(None)
 
         # Sets the orientation to calculate the transformed matrices
-        new_lamina.set_orientation(orientation)
+        new_lamina.set_orientation(orientation_deg)
+
+        self.lamina.append(new_lamina)
+        self.props.thickness += new_lamina.props.thickness
+        self.props.num_layers += 1
 
     def transformation_3D(self, tensor, rot_matrix, theta, theta_radians=False):
         '''
@@ -98,23 +102,18 @@ class Laminate:
                 strain_vec (numpy.ndarray):  Strain vector [E_1, E_2, E_3, g_23, g_13, g_12]
         '''
 
-        for i, lamina in enumerate(self._layers['lamina']):
+        # Iterate over each lamina in the stack
+        for lamina in self.lamina:
 
             # Retrieve the selected layer's orientation
-            theta_deg = self._layers['orientation'][i]
-            self._layers['global_stress'][i] = tensor_to_vec(stress_tensor)
+            theta_deg = lamina.props.orientation
 
+            print(lamina.matrices.S_bar.dot(tensor_to_vec(stress_tensor)))
             # Transform global to local lamina stress
-            local_lamina_stress = self.transformation_3D(
-                stress_tensor, T_z, theta=theta_deg
-            )
-
-            # Store the layer's stress state
-            self._layers['local_stress'][i] = tensor_to_vec(local_lamina_stress)
+            s_local = self.transformation_3D(stress_tensor, T_z, theta=theta_deg)
 
             # Convert local stress to local strain and store the value
-            local_lamina_strain = lamina.stress2strain(local_lamina_stress)
-            self._layers['local_strain'][i] = local_lamina_strain
+            local_lamina_strain = lamina.stress2strain(s_local)
 
             # Epsilon tensor of local lamina strain
             e_local = to_epsilon(create_tensor_3D(*local_lamina_strain))
@@ -122,11 +121,15 @@ class Laminate:
             # Gamma values of global laminate strain
             e_global = to_gamma(self.transformation_3D(e_local, T_z, theta=-theta_deg))
 
-            # Convert back to vector
+            # Convert global stress and strain to vector
             e_global = tensor_to_vec(e_global)
+            s_global = tensor_to_vec(stress_tensor)
 
-            # Store the global laminate strain
-            self._layers['global_strain'][i] = e_global
+            # Store the global stress and strain state
+            self.global_state.append(StateProperties(s_global, e_global))
+
+            # Store the local lamina stress and strain state
+            lamina.local_state.append(StateProperties(s_local, local_lamina_strain))
 
         return e_global
 

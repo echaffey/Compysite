@@ -1,14 +1,10 @@
 import numpy as np
 from dataclasses import dataclass, fields
-from abc import ABC
-
-
-class Properties(ABC):
-    ...
+from typing import List
 
 
 @dataclass
-class MaterialProperties(Properties):
+class MaterialProperties:
     E: np.ndarray = None
     v: np.ndarray = None
     G: np.ndarray = None
@@ -18,7 +14,13 @@ class MaterialProperties(Properties):
 
 
 @dataclass
-class LaminaProperties(Properties):
+class StateProperties:
+    stress: np.ndarray = np.zeros(3)
+    strain: np.ndarray = np.zeros(3)
+
+
+@dataclass
+class LaminaProperties:
     material: MaterialProperties = None
     material_fiber: MaterialProperties = None
     material_matrix: MaterialProperties = None
@@ -29,9 +31,11 @@ class LaminaProperties(Properties):
 
 
 @dataclass
-class StateProperties(Properties):
-    stress: np.ndarray
-    strain: np.ndarray
+class LaminateProperties:
+    thickness: float = 0.0
+    num_layers: int = 0
+    length: float = 0.0
+    width: float = 0.0
 
 
 @dataclass
@@ -40,6 +44,7 @@ class ConversionMatrices:
     S_reduced: np.ndarray
     S_bar: np.ndarray
     S_bar_reduced: np.ndarray
+
     C: np.ndarray
     C_reduced: np.ndarray
     Q_bar: np.ndarray
@@ -51,13 +56,13 @@ class ConversionMatrices:
 
         S = self.S = self.compliance_matrix(props, theta_rad=0)
         S_reduced = self.S_reduced = self._reduced_compliance_matrix()
-        S_bar = self.compliance_matrix(props, theta_rad=0)
-        S_bar_reduced = self._transformed_compliance_matrix_2D()
+        S_bar = self.S_bar = self.compliance_matrix(props, theta_rad=0)
+        S_bar_reduced = self.S_bar_reduced = self._transformed_compliance_matrix_2D()
 
-        C = np.linalg.inv(S)
-        C_reduced = np.linalg.inv(S_reduced)
-        Q_bar = np.linalg.inv(S_bar)
-        Q_bar_reduced = np.linalg.inv(S_bar_reduced)
+        C = self.C = np.linalg.inv(S)
+        C_reduced = self.C_reduced = np.linalg.inv(S_reduced)
+        Q_bar = self.Q_bar = np.linalg.inv(S_bar)
+        Q_bar_reduced = self.Q_bar_reduced = np.linalg.inv(S_bar_reduced)
 
     def update_orientation(self, theta_rad: float):
         '''
@@ -190,7 +195,7 @@ class ConversionMatrices:
         return S_bar_reduced
 
 
-def type_check(properties: Properties) -> Properties:
+def type_check(properties):
     '''
     Create vectors for variables that are passed in as single values
 

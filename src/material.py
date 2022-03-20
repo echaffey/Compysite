@@ -48,8 +48,8 @@ class Material:
 
     def poisson_tensor(self):
 
-        v23, v13, v12 = self._v
-        E1, E2, E3 = self._E
+        v23, v13, v12 = self.props.v
+        E1, E2, E3 = self.props.E
 
         v21 = v12 * E2 / E1
         v31 = v13 * E3 / E1

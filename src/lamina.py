@@ -2,21 +2,17 @@ from material import Material
 
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Union
-from properties import (
-    LaminaProperties,
-    StateProperties,
-    ConversionMatrices,
-    MaterialProperties,
-)
+from typing import Union, List
+from properties import LaminaProperties, StateProperties, ConversionMatrices
+from compositeMaterial import CompositeMaterial
 
 
-class Lamina:
+class Lamina(CompositeMaterial):
     def __init__(
         self,
-        mat_fiber: MaterialProperties = None,
-        mat_matrix: MaterialProperties = None,
-        mat_composite: MaterialProperties = None,
+        mat_fiber: Material = None,
+        mat_matrix: Material = None,
+        mat_composite: Material = None,
         Vol_fiber: float = 0.0,
         Vol_matrix: float = 1.0,
         thickness: float = 0.0,
@@ -40,10 +36,6 @@ class Lamina:
         if mat_composite is None:
             if (mat_fiber is not None) & (mat_matrix is not None):
 
-                # -------------------
-                # Need to add beta calculations
-                # -------------------
-
                 # Create composite from the fiber and matrix materials
                 material = self._create_composite(mat_fiber, mat_matrix, array_geometry)
 
@@ -56,260 +48,30 @@ class Lamina:
         else:
             material = mat_composite
 
+        # Set the lamina properties to the passed in values
         self.props = LaminaProperties(
             material.props, mat_fiber, mat_matrix, Vol_fiber, Vol_matrix, thickness, 0
         )
-        self.state = StateProperties(0, 0)
+
+        # Initialize the stress and strain states
+        self.local_state: List[StateProperties] = []
+
+        # Initialize the compliance and stiffness matrices with default orientation at 0 degrees
         self.matrices = ConversionMatrices(self.props.material)
 
-    def set_orientation(self, theta_deg: float = 0) -> None:
+    def set_orientation(self, theta_deg: float = 0.0) -> None:
+        '''
+        Sets the orientation of the lamina within the laminate stack.
+
+        Args:
+            theta_deg (float, optional): Lamina orientation in degrees. Defaults to 0.0
+        '''
 
         # Store orientation in radians
         self.props.orientation = theta_deg * np.pi / 180
 
         # Updates transformation matrices with new orientation
         self.matrices.update_orientation(self.props.orientation)
-
-    def _halpin_tsai(self, M_f, M_m, V_f, array_geometry=1) -> float:
-        '''
-        Calculates the Halpin-Tsai prediction for the in-plane and transverse elastic or shear modulus of the composite material.
-
-            Parameters:
-                M_f  (float): Elastic/shear modulus of the fiber material
-                M_m  (float): Elastic/shear modulus of the matrix material
-                V_f  (float): Fiber volume fraction
-                xi   (int):   Geometric constant where 1=Hexagonal array, 2=Square array
-            Returns:
-                M_12    (float): In-plane elastic/shear modulus
-        '''
-
-        xi = array_geometry
-
-        # Halpin Tsai finds transverse/in-plane modulus so only E_2 or G_13=G_12 is used
-        M_f = M_f[1]
-        M_m = M_m[1]
-
-        # Ratio of fiber modulus to matrix modulus
-        _M = M_f / M_m
-
-        # Proportionality constant based on the array geometry
-        _n = (_M - 1) / (_M + xi)
-
-        # Transverse modulus
-        _M_2 = M_m * (1 + xi * _n * V_f) / (1 - _n * V_f)
-
-        return _M_2
-
-    def _composite_shear_mod(
-        self, mat_fiber, mat_matrix, array_geometry=1
-    ) -> np.ndarray:
-        '''
-        Calculates the equivalent composite shear modulus in the 3 principal directions.
-            *This assumes that the transverse directions are isotropic*
-
-            Parameters:
-                E_m (np.ndarray, float): Elastic modulus of the matrix material
-                v_f (np.ndarray, float): Poisson's ratio of the fiber material
-                v_m (np.ndarray, float): Poisson's ratio of the matrix material
-                G_f (np.ndarray, float): Shear modulus of the fiber material
-                Vol_f (float):           Volume fraction of the fiber
-                Vol_m (float):           Volume fraction of the matrix [Optional]
-
-            Returns:
-                G_3D (np.ndarray): 3x1 array of the Shear modulus in the principal directions
-        '''
-
-        # This needs value checking
-        # -------------------
-        _, _, G_f = mat_fiber.get_properties()
-        E_m, v_m, G_m = mat_matrix.get_properties()
-
-        Vol_f = self._Vol_f
-        Vol_m = 1 - Vol_f
-        # ----------------------
-
-        xi = array_geometry
-
-        # Create directional components if an isotropic value is given and
-        # calculate the shear modulus for the matrix in each of the principal directions
-        if np.sum(G_m) == 0:
-            G_m = E_m / (2 * (1 + v_m))
-
-        # Calculate the in-plane shear modulus using Halpin-Tsai formula
-        G_12 = self._halpin_tsai(G_f, G_m, Vol_f, xi)
-
-        # Set the poisson's ratio and shear modulus in the 23 direction
-        v_m_23 = v_m[0]
-        G_m_23 = G_m[0]
-        G_f_23 = G_f[0]
-
-        # Calculate the out of plane shear
-        n_23 = (3 - 4 * v_m_23 + G_m_23 / G_f_23) / (4 * (1 - v_m_23))
-        _G_23 = (
-            G_m_23 * (Vol_f + n_23 * Vol_m) / (n_23 * Vol_m + Vol_f * (G_m_23 / G_f_23))
-        )
-
-        # Composite is assume to be orthotropic
-        _G_13 = G_12
-
-        # Return an array containing the composite shear modulus
-        return np.array([_G_23, _G_13, G_12])
-
-    def _composite_poisson_ratio(self, E_c, G_c, mat_fiber, mat_matrix) -> np.ndarray:
-        '''
-        Calculates the equivalent composite Poisson's ratio in the 3 principal directions.
-        *This assumes that the transverse directions are isotropic*
-
-        Parameters:
-            E (np.ndarray):          Elastic modulus of the composite
-            v_f (np.ndarray, float): Poisson's ratio of the fiber
-            v_m (np.ndarray, float): Poisson's ratio of the matrix
-            G (np.ndarray):          Shear modulus of the composite
-            Vol_f (float):           Volume fraction of the fiber
-
-        Returns:
-            v (np.ndarray): Equivalent composite Poisson's ratio in the principal directions
-        '''
-
-        E = E_c
-        G = G_c
-
-        _, v_f, _ = mat_fiber.get_properties()
-        _, v_m, _ = mat_matrix.get_properties()
-
-        # Calculate the matrix volume fraction
-        Vol_f = self._Vol_f
-        Vol_m = 1 - Vol_f
-
-        # Rule of mixtures
-        _v = v_f * Vol_f + v_m * Vol_m
-
-        # Calculate Poisson's on the 23 plane
-        _v[0] = E[2] / (2 * G[0]) - 1
-
-        return _v
-
-    def _composite_elastic_mod(
-        self, mat_fiber, mat_matrix, array_geometry=1
-    ) -> np.ndarray:
-        '''
-        Calculates the equivalent composite elastic modulus in the 3 principal directions. 
-        *This assumes that the transverse directions are isotropic*
-
-            Parameters:
-                E_f (float): Elastic modulus of the fiber material
-                E_m (float): Elastic modulus of the matrix material
-                V_f (float): Volume fraction of the fiber
-                V_m (float): Volume fraction of the matrix [Optional]
-                xi    (int): Geometric array factor (1=hexagonal array, 2=square array)
-
-            Returns:
-                E_3D (np.ndarray): 3x1 array of the Elastic Modulus in the principal directions
-        '''
-
-        E_f, _, _ = mat_fiber.get_properties()
-        E_m, _, _ = mat_matrix.get_properties()
-
-        Vol_f = self._Vol_f
-        Vol_m = 1 - Vol_f
-
-        # Rule of mixtures
-        _E_1 = E_f[0] * Vol_f + E_m[0] * Vol_m
-
-        # Halpin-Tsai for transverse directions
-        _E_2 = self._halpin_tsai(E_f, E_m, Vol_f, array_geometry)
-
-        # Material assumed to be orthotropic
-        _E_3 = _E_2
-
-        return np.array([_E_1, _E_2, _E_3])
-
-    def _composite_thermal_expansion(self, mat_fiber, mat_matrix) -> np.ndarray:
-        '''
-        alpha_f, alpha_m, E_f, E_m, v_f, v_m, G_f, Vol_f, xi=1
-        '''
-
-        # Calculate matrix volume fraction
-        Vol_m = 1 - self._Vol_f
-
-        # Calculate the effective composite material properties
-        _E, _v, _ = self.get_lamina_properties()
-        E_f, v_f, _ = mat_fiber.get_properties()
-        E_m, v_m, _ = mat_matrix.get_properties()
-        alpha_f, _ = mat_fiber.get_expansion_properties()
-        alpha_m, _ = mat_matrix.get_expansion_properties()
-
-        # Calculate the effective thermal expansion constant of the composite
-        _alpha_1 = (
-            1
-            / _E[0]
-            * (alpha_f[0] * E_f[0] * self._Vol_f + alpha_m[0] * E_m[0] * Vol_m)
-        )
-
-        if self._Vol_f > 0.25:
-            _alpha_2 = alpha_f[1] * self._Vol_f + (1 + v_m[1]) * alpha_m[1] * Vol_m
-        else:
-            _alpha_2 = (
-                (1 + v_f[1]) * alpha_f[1] * self._Vol_f
-                + (1 + v_m[1]) * alpha_m[1] * Vol_m
-                - _alpha_1 * _v[2]
-            )
-
-        _alpha_3 = _alpha_2
-
-        return np.array([_alpha_1, _alpha_2, _alpha_3])
-
-    def _create_composite(self, mat_fiber, mat_matrix, array_geometry=1) -> Material:
-        '''
-        Returns the effective material properties (elastic modulus, Poisson's ratio and shear modulus) for the composite material.
-
-        Parameters:
-            E_f (numpy.ndarray, float): Elastic modulus of the fiber.
-            E_m (numpy.ndarray, float): Elastic modulus of the matrix.
-            v_f (numpy.ndarray, float): Poisson's ratio of the fiber.
-            v_m (numpy.ndarray, float): Poisson's ratio of the matrix.
-            G_f (numpy.ndarray, float): Shear modulus of the fiber.
-            Vol_f (float):              Volume fraction of the fiber.
-            xi (int):                   Halpin-Tsai geometric constant. (1 = hexagonal array, 2 = square array)
-
-        Returns:
-            properties (numpy.ndarray):   3 row matrix containing the elastic modulus, Poisson's ratio and shear modulus, respectively
-        '''
-
-        xi = array_geometry
-
-        # Calculate the composite elastic modulus
-        _E = self._composite_elastic_mod(mat_fiber, mat_matrix, array_geometry=xi)
-
-        # Calculate the composite shear modulus
-        _G = self._composite_shear_mod(mat_fiber, mat_matrix, array_geometry=xi)
-
-        # Calculate the composite Poisson's ratio
-        _v = self._composite_poisson_ratio(_E, _G, mat_fiber, mat_matrix)
-
-        # Calculate the composite thermal expansion ratio
-        _alpha = self._composite_thermal_expansion(mat_fiber, mat_matrix)
-
-        # Return the created composite
-        return Material(_E, _v, _G, _alpha)
-
-    def get_lamina_properties(self) -> Union[np.ndarray, np.ndarray, np.ndarray]:
-
-        E, v, G = self.props.material.get_properties()
-
-        return E, v, G
-
-    def get_lamina_expansion_properties(
-        self,
-    ) -> Union[np.ndarray, np.ndarray, np.ndarray]:
-
-        alpha, beta = self.props.material.get_expansion_properties()
-
-        return alpha, beta
-
-    def get_material(self) -> Material:
-
-        return self.props.material
 
     def stress2strain(self, stress_tensor: np.ndarray) -> np.ndarray:
         '''
@@ -326,7 +88,7 @@ class Lamina:
         '''
 
         # Unpack tensor into a 6x1 column vector
-        _vec = np.array(
+        stress_vec = np.array(
             [
                 *np.diag(stress_tensor),
                 stress_tensor[1, 2],
@@ -336,11 +98,11 @@ class Lamina:
         )
 
         # Create compliance matrix
-        _S = self.matrices.S
+        S = self.matrices.S
 
-        _strain_vec = _S.dot(_vec)
+        strain_vec = S.dot(stress_vec)
 
-        return _strain_vec
+        return strain_vec
 
     def strain2stress(self, strain_tensor: np.ndarray) -> np.ndarray:
         '''
@@ -359,7 +121,7 @@ class Lamina:
         '''
 
         # Unpack tensor into a 6x1 column vector
-        _vec = np.array(
+        strain_vec = np.array(
             [
                 *np.diag(strain_tensor),
                 strain_tensor[1, 2],
@@ -369,9 +131,9 @@ class Lamina:
         )
 
         # Create stiffness matrix
-        _C = self.matrices.C
+        C = self.matrices.C
 
-        stress_vec = _C.dot(_vec)
+        stress_vec = C.dot(strain_vec)
 
         return stress_vec
 
@@ -407,7 +169,7 @@ class Lamina:
         S = self.matrices.S
 
         # Create applied stress vector [sigma_1, sigma_2, sigma_3, tau_23, tau_13, tau_12]
-        _vec = np.array(
+        stress_vec = np.array(
             [
                 *np.diagonal(stress_tensor),
                 stress_tensor[1, 2],
@@ -417,9 +179,9 @@ class Lamina:
         )
 
         # Create vector representing boundary conditions where 1=applied stress, 0=no applied stress
-        bc = np.zeros_like(_vec)
+        bc = np.zeros_like(stress_vec)
 
-        for i, v in enumerate(_vec):
+        for i, v in enumerate(stress_vec):
             if v != 0:
                 bc[i] = 1
 
@@ -428,13 +190,13 @@ class Lamina:
         # Example:
         # vec = [0, 125e6, 0, 0, 0, 0] -> original stress vector
         # vec = [0, 125e6, 1, 0, 0, 0] -> constrained in direction 3 so sigma_3's value is preserved
-        _vec[direction - 1] = 1
+        stress_vec[direction - 1] = 1
 
         # Slice just the row pertaining to the unknown stress (constrained direction) and multiply it by the stress vector
         # This calculates the mechanical strain at the applied stress direction and leaves the unknown compliance value
         # From above example, only the row related to direction 2 (125e6) is preserved
         # S = [0, 125e6*S_22, 1*S_23, 0, 0, 0]
-        _S = S[direction - 1, :] * _vec
+        _S = S[direction - 1, :] * stress_vec
 
         # Factor in additional strains experienced by the composite (thermal, hydro, etc)
         net_strain = 0
@@ -451,11 +213,11 @@ class Lamina:
         sigma_c = -(_S.dot(bc) + net_strain) / _S[direction - 1]
 
         # Put the solved for stress back into the stress vector
-        _vec[direction - 1] = sigma_c
+        stress_vec[direction - 1] = sigma_c
 
         # Solve for the strain values
         # epsilon = S * sigma
-        _total_strain = S.dot(_vec)
+        _total_strain = S.dot(stress_vec)
 
         # Add in non-mechanical strains and then set total strain to zero in the constrained direction
         # because constraints don't allow for changes in dimension which means that strain is zero
@@ -465,9 +227,27 @@ class Lamina:
         _total_strain[direction - 1] = 0
 
         # All stresses acting on the system
-        _total_stress = _vec
+        _total_stress = stress_vec
 
         return _total_stress, _total_strain
+
+    def get_lamina_properties(self) -> Union[np.ndarray, np.ndarray, np.ndarray]:
+
+        E, v, G = self.props.material.get_properties()
+
+        return E, v, G
+
+    def get_lamina_expansion_properties(
+        self,
+    ) -> Union[np.ndarray, np.ndarray, np.ndarray]:
+
+        alpha, beta = self.props.material.get_expansion_properties()
+
+        return alpha, beta
+
+    def get_material(self) -> Material:
+
+        return self.props.material
 
     def plot_compliance(self, range_theta_rad):
 
