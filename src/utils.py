@@ -1,5 +1,6 @@
 from typing import Union
 import numpy as np
+from dataclasses import fields
 
 
 def R_x(theta_rad):
@@ -195,3 +196,30 @@ def to_epsilon(strain_matrix) -> np.ndarray:
     )
 
     return _epsilon_tensor
+
+
+def type_check(properties):
+    '''
+    Create vectors for variables that are passed in as single values
+
+    Args:
+        properties (Properties): Lamina or material properties object to check.
+
+    Returns:
+        Properties: Properties object with all attributes being vectors of the appropriate length.
+    '''
+    p = properties
+
+    for field in fields(properties):
+        arg = getattr(p, field.name)
+
+        if isinstance(arg, (float, int)):
+            setattr(p, field.name, np.ones(3) * arg)
+
+        elif arg is None:
+            setattr(p, field.name, np.zeros(3))
+
+        else:
+            pass
+
+    return p

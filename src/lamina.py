@@ -2,10 +2,30 @@ from material import Material
 
 import numpy as np
 import matplotlib.pyplot as plt
+from dataclasses import dataclass
 from typing import Union, List
-from properties import LaminaProperties, StateProperties, ConversionMatrices
+from properties import StateProperties
 from compositeMaterial import CompositeMaterial
-from utils import tensor_to_vec, T_z, transformation_3D
+from conversion import (
+    to_epsilon,
+    to_gamma,
+    tensor_to_vec,
+    T_z,
+    transformation_3D,
+    ConversionMatrices,
+)
+import copy
+
+
+@dataclass
+class LaminaProperties:
+    material: Material = None
+    material_fiber: Material = None
+    material_matrix: Material = None
+    Vol_f: float = 0.0
+    Vol_m: float = 1.0
+    thickness: float = 0.0
+    orientation: float = 0.0
 
 
 class Lamina(CompositeMaterial):
@@ -51,14 +71,18 @@ class Lamina(CompositeMaterial):
 
         # Set the lamina properties to the passed in values
         self.props = LaminaProperties(
-            material.props, mat_fiber, mat_matrix, Vol_fiber, Vol_matrix, thickness, 0
+            material, mat_fiber, mat_matrix, Vol_fiber, Vol_matrix, thickness, 0,
         )
 
         # Initialize the stress and strain states
         self.local_state: StateProperties = StateProperties()
 
         # Initialize the compliance and stiffness matrices with default orientation at 0 degrees
-        self.matrices = ConversionMatrices(self.props.material)
+        self.matrices = ConversionMatrices(material)
+
+    def copy(self):
+
+        return copy.deepcopy(self)
 
     def set_orientation(self, theta_deg: float = 0.0) -> None:
         '''
@@ -74,7 +98,7 @@ class Lamina(CompositeMaterial):
         # Updates transformation matrices with new orientation
         self.matrices.update_orientation(self.props.orientation)
 
-    def apply_stress(self, stress_tensor: np.ndarray) -> None:
+    def apply_stress(self, global_stress_tensor: np.ndarray) -> None:
         '''
         Updates the local stress and strain state from a given globally applied stress.
 
@@ -87,71 +111,43 @@ class Lamina(CompositeMaterial):
 
         # Convert global to local stress
         local_stress_tensor = transformation_3D(
-            stress_tensor, T_z, theta_rad, theta_radians=True
+            global_stress_tensor, T_z, theta_rad, theta_radians=True
         )
 
         local_stress = tensor_to_vec(local_stress_tensor)
 
-        local_strain = self.stress2strain(local_stress_tensor)
-
-        self.local_state = StateProperties(local_stress, local_strain)
-
-    def stress2strain(self, stress_tensor: np.ndarray) -> np.ndarray:
-        '''
-        Conversion from stress tensor to strain vector.
-
-            Parameters:
-                stress_tensor (numpy.ndarray):   Stress tensor 
-                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
-                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
-                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
-
-            Returns:
-                strain_vec (numpy.ndarray):  Strain vector [E_1, E_2, E_3, g_23, g_13, g_12]
-        '''
-
-        # Unpack tensor into a 6x1 column vector
-        stress_vec = tensor_to_vec(stress_tensor)
-
         # Create compliance matrix
         S = self.matrices.S
 
-        strain_vec = S.dot(stress_vec)
+        local_strain = S.dot(local_stress)
 
-        return strain_vec
+        self.local_state = StateProperties(local_stress, local_strain)
 
-    def strain2stress(self, strain_tensor: np.ndarray) -> np.ndarray:
+    def apply_strain(self, global_strain_matrix: np.ndarray) -> None:
         '''
-        Conversion from strain tensor to stress vector. 
-        Strain must be in terms of gamma so pre-mulitiply the epsilon values by 2 for state of strain.
-        State of strain is a tensor in terms of epsilon.
+        Updates the local stress and strain state from a given globally applied stress.
 
-            Parameters:
-                strain_tensor (numpy.ndarray):   Strain tensor in terms of gamma
-                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
-                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
-                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
-
-            Returns:
-                stress_vec (numpy.ndarray):  Stress vector [s_1, s_2, s_3, t_23, t_13, t_12] 
+        Args:
+            stress_tensor (np.ndarray): Global stress tensor being applied.
         '''
 
-        # Unpack tensor into a 6x1 column vector
-        strain_vec = np.array(
-            [
-                *np.diag(strain_tensor),
-                strain_tensor[1, 2],
-                strain_tensor[0, 2],
-                strain_tensor[0, 1],
-            ]
+        # Global lamina orientation
+        theta_rad = self.props.orientation
+
+        global_strain_matrix = to_epsilon(global_strain_matrix)
+
+        # Convert global to local stress
+        local_strain_tensor = transformation_3D(
+            global_strain_matrix, T_z, theta_rad, theta_radians=True
         )
 
-        # Create stiffness matrix
+        local_strain = to_gamma(local_strain_tensor)
+        local_strain = tensor_to_vec(local_strain)
+
         C = self.matrices.C
+        local_stress = C.dot(local_strain)
 
-        stress_vec = C.dot(strain_vec)
-
-        return stress_vec
+        self.local_state = StateProperties(local_stress, local_strain)
 
     def apply_2D_boundary_conditions(
         self,
@@ -176,7 +172,7 @@ class Lamina(CompositeMaterial):
 
         '''
 
-        # Ensure that the dimensions of the themal and moisture vectors are the correct length
+        # Ensure that the dimensions of the thermal and moisture vectors are the correct length
         for i, strain in enumerate(additional_strain):
             if len(strain) < 6:
                 additional_strain[i] = np.append(strain, np.zeros(6 - len(strain)))
@@ -185,14 +181,7 @@ class Lamina(CompositeMaterial):
         S = self.matrices.S
 
         # Create applied stress vector [sigma_1, sigma_2, sigma_3, tau_23, tau_13, tau_12]
-        stress_vec = np.array(
-            [
-                *np.diagonal(stress_tensor),
-                stress_tensor[1, 2],
-                stress_tensor[0, 2],
-                stress_tensor[0, 1],
-            ]
-        )
+        stress_vec = tensor_to_vec(stress_tensor)
 
         # Create vector representing boundary conditions where 1=applied stress, 0=no applied stress
         bc = np.zeros_like(stress_vec)

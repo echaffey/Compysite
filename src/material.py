@@ -1,6 +1,16 @@
 import numpy as np
 from dataclasses import dataclass
-from properties import MaterialProperties, type_check
+from properties import type_check
+
+
+@dataclass
+class MaterialProperties:
+    E: np.ndarray = None
+    v: np.ndarray = None
+    G: np.ndarray = None
+    alpha: np.ndarray = None
+    beta: np.ndarray = None
+    name: str = ''
 
 
 class Material:
