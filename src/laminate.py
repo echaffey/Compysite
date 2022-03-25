@@ -4,14 +4,7 @@ from dataclasses import dataclass
 
 from lamina import Lamina
 from properties import StateProperties
-from conversion import (
-    create_tensor_3D,
-    T_z,
-    to_epsilon,
-    to_gamma,
-    tensor_to_vec,
-    transformation_3D,
-)
+from conversion import tensor_to_vec
 
 
 @dataclass
@@ -23,13 +16,14 @@ class LaminateProperties:
 
 
 class Laminate:
-    def __init__(self, length=0, width=0):
+    def __init__(self, length: int = 0, width: int = 0, symmetric: bool = True):
 
         self._num_plys = 0
         self.props = LaminateProperties(length=length, width=width)
         self._thickness = 0
         self._length = length
         self._width = width
+        self._symmetric = symmetric
         self.lamina: List[Lamina] = []
         self.global_state: List[StateProperties] = []
 
@@ -114,92 +108,40 @@ class Laminate:
 
         self.global_state = temp_state
 
-    def stress2strain(self, stress_tensor: np.ndarray) -> np.ndarray:
+    def get_lamina(self, layer_num: int = None) -> Lamina:
         '''
-        Conversion from global stress tensor to global strain vector.
-            Parameters:
-                stress_tensor (numpy.ndarray):   Stress tensor 
-                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
-                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
-                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
-            Returns:
-                strain_vec (numpy.ndarray):  Strain vector [E_1, E_2, E_3, g_23, g_13, g_12]
-        '''
+        Returns the lamina object at the given layer or the collection of all lamina in the laminate stack.
 
-        # Iterate over each lamina in the stack
+        Args:
+            layer_num (int, optional): Layer to return. Index is 1 based. Defaults to None.
+
+        Returns:
+            Lamina: Selected lamina object.
+        '''
+        if not layer_num:
+            return self.lamina
+
+        return self.lamina[layer_num - 1]
+
+    def ABD_matrix(self) -> np.ndarray:
+
+        A = None
+        B = None
+        D = None
+
         for lamina in self.lamina:
+            # A matrix is working
+            if A is not None:
+                A += lamina.matrices.Q_bar_reduced * lamina.props.thickness
+            else:
+                A = lamina.matrices.Q_bar_reduced * lamina.props.thickness
 
-            # Retrieve the selected layer's orientation
-            theta_deg = lamina.props.orientation
+            # B not working
+            # B matrix needs square of superior and inferior layer heights
+            if B is not None:
+                B += 0.5 * lamina.matrices.Q_bar_reduced * lamina.props.thickness ** 2
+            else:
+                B = 0.5 * lamina.matrices.Q_bar_reduced * lamina.props.thickness ** 2
 
-            lamina.apply_stress(stress_tensor)
-            # print(lamina.matrices.S_bar.dot(tensor_to_vec(stress_tensor)))
-            # Transform global to local lamina stress
-            s_local = transformation_3D(stress_tensor, T_z, theta=theta_deg)
+        return A
 
-            # Convert local stress to local strain and store the value
-            local_lamina_strain = lamina.stress2strain(s_local)
-
-            # Epsilon tensor of local lamina strain
-            e_local = to_epsilon(create_tensor_3D(*local_lamina_strain))
-
-            # Gamma values of global laminate strain
-            e_global = to_gamma(transformation_3D(e_local, T_z, theta=-theta_deg))
-
-            # Convert global stress and strain to vector
-            e_global = tensor_to_vec(e_global)
-            s_global = tensor_to_vec(stress_tensor)
-
-            # Store the global stress and strain state
-            self.global_state.append(StateProperties(s_global, e_global))
-
-            # Store the local lamina stress and strain state
-            print(StateProperties(tensor_to_vec(s_local), local_lamina_strain))
-            # lamina.local_state = StateProperties(s_local, local_lamina_strain)
-
-        return e_global
-
-    def strain2stress(self, strain_tensor: np.ndarray) -> np.ndarray:
-        '''
-        Conversion from strain tensor to stress vector. 
-        Strain must be in terms of gamma so pre-mulitiply the epsilon values by 2 for state of strain.
-        State of strain is a tensor in terms of epsilon.
-
-            Parameters:
-                strain_tensor (numpy.ndarray):   Strain tensor in terms of gamma
-                elasticity_mod (numpy.ndarray):  Young's modulus [E1, E2, E3]
-                shear_mod (numpy.ndarray):       Shear modulus [G23, G13, G12]
-                poissons_ratio (numpy.ndarray):  Poisson's ratio [v23, v13, v12]
-
-            Returns:
-                stress_vec (numpy.ndarray):  Stress vector [s_1, s_2, s_3, t_23, t_13, t_12] 
-        '''
-
-        for i, lamina in enumerate(self._layers['lamina']):
-
-            theta_deg = self._layers['orientation'][i]
-            self._layers['global_strain'][i] = tensor_to_vec(strain_tensor)
-
-            # Transform global to local lamina strain and store it
-            strain_tensor = to_epsilon(strain_tensor)
-            local_lamina_strain = self.transformation_3D(
-                strain_tensor, T_z, theta=theta_deg
-            )
-            self._layers['local_strain'][i] = tensor_to_vec(local_lamina_strain)
-
-            # Convert local strain to local stress and store the value
-            local_lamina_strain = to_gamma(local_lamina_strain)
-            local_lamina_stress = lamina.strain2stress(local_lamina_strain)
-            self._layers['local_stress'][i] = local_lamina_stress
-
-            # Global laminate stress
-            local_lamina_stress = create_tensor_3D(*local_lamina_stress)
-            sigma_global = self.transformation_3D(
-                local_lamina_stress, T_z, theta=-theta_deg
-            )
-            sigma_global = tensor_to_vec(sigma_global)
-
-            # Store the global laminate stress
-            self._layers['global_stress'][i] = sigma_global
-
-        return sigma_global

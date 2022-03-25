@@ -1,5 +1,5 @@
 import numpy as np
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 
 from material import Material
 
@@ -40,6 +40,7 @@ class ConversionMatrices:
         Args:
             theta_rad (float): Orientation in radians.
         '''
+
         self.S_bar = self.compliance_matrix(self.mat, theta_rad)
         self.S_bar_reduced = self._transformed_compliance_matrix_2D(theta_rad)
         self.Q_bar = np.linalg.inv(self.S_bar)
@@ -112,6 +113,9 @@ class ConversionMatrices:
         _S_r[2, 2] = S[-1, -1]
 
         return _S_r
+
+    def _A_matrix(self, q_bar: np.ndarray, z: int):
+        pass
 
     def transformation_matrix_2D(self, theta_rad: float = 0) -> np.ndarray:
 

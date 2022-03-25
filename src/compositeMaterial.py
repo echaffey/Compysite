@@ -200,7 +200,6 @@ class CompositeMaterial:
 
         _alpha_3 = _alpha_2
 
-        print(_alpha_1)
         return np.array([_alpha_1, _alpha_2, _alpha_3])
 
     def _create_composite(

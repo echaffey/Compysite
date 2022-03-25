@@ -1,7 +1,7 @@
 from Compysite import Material, Lamina, Laminate
 import numpy as np
 import matplotlib.pyplot as plt
-from conversion import create_tensor_3D, tensor_to_vec
+from conversion import create_tensor_3D
 
 
 def validation_1():
@@ -112,6 +112,23 @@ def validation_6():
     lam = Laminate()
     mat = Material(E, v, G)
     layer_1 = Lamina(mat_composite=mat)
+    layer_2 = Lamina(mat_composite=mat)
+
+    lam.add_lamina(layer_1, 45)
+    lam.add_lamina(layer_2, -30)
+
+    print(lam.get_lamina(1).matrices.T_2D)
+    print(lam.get_lamina(2).matrices.T_2D)
+
+
+def testing():
+    E = np.array([100, 20, 20])
+    v = np.array([0.40, 0.18, 0.18])
+    G = np.array([4, 5, 5])
+
+    lam = Laminate()
+    mat = Material(E, v, G)
+    layer_1 = Lamina(mat_composite=mat)
 
     lam.add_lamina(layer_1, 0)
     lam.add_lamina(layer_1, 90)
@@ -139,6 +156,26 @@ def validation_6():
     plt.close(fig)
 
 
+def notes_p_56():
+
+    E = np.array([181, 10.3, 10.3]) * 1e9
+    v = 0.28
+    G = 7.17e9
+
+    alpha = np.array([-0.018, 24.3, 24.3]) * 1e-6
+    beta = np.array([146, 4770, 4770]) * 1e-6
+
+    lam = Laminate()
+    mat = Material(E, v, G, alpha, beta)
+    layer_1 = Lamina(mat_composite=mat, thickness=5e-3)
+
+    lam.add_lamina(layer_1, 0)
+    lam.add_lamina(layer_1, 30)
+    lam.add_lamina(layer_1, -45)
+
+    print(lam.ABD_matrix())
+
+
 def main():
     E = np.array([14, 3.5, 3.5])
     v = np.array([0.5, 0.4, 0.4])
@@ -159,10 +196,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
     # validation_1()
     # validation_2()
     # validation_3()
     # validation_4()
     # validation_5()
     # validation_6()
+    notes_p_56()
