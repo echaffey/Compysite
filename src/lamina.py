@@ -52,13 +52,18 @@ class Lamina(CompositeMaterial):
             array_geometry (int, optional): Matrix array geometry constant.  1 = Hexagonal array, 2 = Square array. Defaults to 1.
         '''
 
+        if not Vol_fiber:
+            Vol_fiber = 1 - Vol_matrix
+
         # Create the composite from the fiber and matrix materials if a composite is not given
         # Alternatively, if only a matrix is given, its a uniform material
         if mat_composite is None:
             if (mat_fiber is not None) & (mat_matrix is not None):
 
                 # Create composite from the fiber and matrix materials
-                material = self._create_composite(mat_fiber, mat_matrix, array_geometry)
+                material = self._create_composite(
+                    mat_fiber, mat_matrix, Vol_fiber, array_geometry
+                )
 
             elif mat_matrix is not None:
                 material = mat_matrix
@@ -81,7 +86,6 @@ class Lamina(CompositeMaterial):
         self.matrices = ConversionMatrices(material)
 
     def copy(self):
-
         return copy.deepcopy(self)
 
     def set_orientation(self, theta_deg: float = 0.0) -> None:

@@ -56,6 +56,10 @@ class Material:
 
         return self.props.E, self.props.v, self.props.G
 
+    def get_expansion_properties(self):
+
+        return self.props.alpha, self.props.beta
+
     def poisson_tensor(self):
 
         v23, v13, v12 = self.props.v

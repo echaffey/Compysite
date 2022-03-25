@@ -42,7 +42,11 @@ class CompositeMaterial:
         return _M_2
 
     def _composite_shear_mod(
-        self, mat_fiber: Material, mat_matrix: Material, array_geometry: int = 1
+        self,
+        mat_fiber: Material,
+        mat_matrix: Material,
+        Vol_f: float,
+        array_geometry: int = 1,
     ) -> np.ndarray:
         '''
         Calculates the equivalent composite shear modulus in the 3 principal directions.
@@ -64,7 +68,6 @@ class CompositeMaterial:
         _, _, G_f = mat_fiber.get_properties()
         E_m, v_m, G_m = mat_matrix.get_properties()
 
-        Vol_f = self._Vol_f
         Vol_m = 1 - Vol_f
         # ----------------------
 
@@ -95,7 +98,9 @@ class CompositeMaterial:
         # Return an array containing the composite shear modulus
         return np.array([_G_23, _G_13, G_12])
 
-    def _composite_poisson_ratio(self, E_c, G_c, mat_fiber, mat_matrix) -> np.ndarray:
+    def _composite_poisson_ratio(
+        self, E_c, G_c, mat_fiber, mat_matrix, Vol_f
+    ) -> np.ndarray:
         '''
         Calculates the equivalent composite Poisson's ratio in the 3 principal directions.
         *This assumes that the transverse directions are isotropic*
@@ -118,7 +123,6 @@ class CompositeMaterial:
         _, v_m, _ = mat_matrix.get_properties()
 
         # Calculate the matrix volume fraction
-        Vol_f = self._Vol_f
         Vol_m = 1 - Vol_f
 
         # Rule of mixtures
@@ -130,7 +134,7 @@ class CompositeMaterial:
         return _v
 
     def _composite_elastic_mod(
-        self, mat_fiber, mat_matrix, array_geometry=1
+        self, mat_fiber, mat_matrix, Vol_f, array_geometry=1
     ) -> np.ndarray:
         '''
         Calculates the equivalent composite elastic modulus in the 3 principal directions. 
@@ -150,7 +154,6 @@ class CompositeMaterial:
         E_f, _, _ = mat_fiber.get_properties()
         E_m, _, _ = mat_matrix.get_properties()
 
-        Vol_f = self._Vol_f
         Vol_m = 1 - Vol_f
 
         # Rule of mixtures
@@ -164,16 +167,18 @@ class CompositeMaterial:
 
         return np.array([_E_1, _E_2, _E_3])
 
-    def _composite_thermal_expansion(self, mat_fiber, mat_matrix) -> np.ndarray:
+    def _composite_thermal_expansion(
+        self, mat_fiber, mat_matrix, Vol_f, E_c, v_c
+    ) -> np.ndarray:
         '''
         alpha_f, alpha_m, E_f, E_m, v_f, v_m, G_f, Vol_f, xi=1
         '''
 
         # Calculate matrix volume fraction
-        Vol_m = 1 - self._Vol_f
+        Vol_m = 1 - Vol_f
 
         # Calculate the effective composite material properties
-        _E, _v, _ = self.get_lamina_properties()
+        _E, _v, = E_c, v_c
         E_f, v_f, _ = mat_fiber.get_properties()
         E_m, v_m, _ = mat_matrix.get_properties()
         alpha_f, _ = mat_fiber.get_expansion_properties()
@@ -181,25 +186,26 @@ class CompositeMaterial:
 
         # Calculate the effective thermal expansion constant of the composite
         _alpha_1 = (
-            1
-            / _E[0]
-            * (alpha_f[0] * E_f[0] * self._Vol_f + alpha_m[0] * E_m[0] * Vol_m)
+            1 / _E[0] * (alpha_f[0] * E_f[0] * Vol_f + alpha_m[0] * E_m[0] * Vol_m)
         )
 
-        if self._Vol_f > 0.25:
-            _alpha_2 = alpha_f[1] * self._Vol_f + (1 + v_m[1]) * alpha_m[1] * Vol_m
+        if Vol_f > 0.25:
+            _alpha_2 = alpha_f[1] * Vol_f + (1 + v_m[1]) * alpha_m[1] * Vol_m
         else:
             _alpha_2 = (
-                (1 + v_f[1]) * alpha_f[1] * self._Vol_f
+                (1 + v_f[1]) * alpha_f[1] * Vol_f
                 + (1 + v_m[1]) * alpha_m[1] * Vol_m
                 - _alpha_1 * _v[2]
             )
 
         _alpha_3 = _alpha_2
 
+        print(_alpha_1)
         return np.array([_alpha_1, _alpha_2, _alpha_3])
 
-    def _create_composite(self, mat_fiber, mat_matrix, array_geometry=1) -> Material:
+    def _create_composite(
+        self, mat_fiber, mat_matrix, Vol_f, array_geometry=1
+    ) -> Material:
         '''
         Returns the effective material properties (elastic modulus, Poisson's ratio and shear modulus) for the composite material.
 
@@ -219,16 +225,18 @@ class CompositeMaterial:
         xi = array_geometry
 
         # Calculate the composite elastic modulus
-        _E = self._composite_elastic_mod(mat_fiber, mat_matrix, array_geometry=xi)
+        _E = self._composite_elastic_mod(
+            mat_fiber, mat_matrix, Vol_f, array_geometry=xi
+        )
 
         # Calculate the composite shear modulus
-        _G = self._composite_shear_mod(mat_fiber, mat_matrix, array_geometry=xi)
+        _G = self._composite_shear_mod(mat_fiber, mat_matrix, Vol_f, array_geometry=xi)
 
         # Calculate the composite Poisson's ratio
-        _v = self._composite_poisson_ratio(_E, _G, mat_fiber, mat_matrix)
+        _v = self._composite_poisson_ratio(_E, _G, mat_fiber, mat_matrix, Vol_f)
 
         # Calculate the composite thermal expansion ratio
-        _alpha = self._composite_thermal_expansion(mat_fiber, mat_matrix)
+        _alpha = self._composite_thermal_expansion(mat_fiber, mat_matrix, Vol_f, _E, _v)
 
         # Return the created composite
         return Material(_E, _v, _G, _alpha)

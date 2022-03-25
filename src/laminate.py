@@ -1,5 +1,8 @@
-from lamina import Lamina
+import numpy as np
+from typing import List
 from dataclasses import dataclass
+
+from lamina import Lamina
 from properties import StateProperties
 from conversion import (
     create_tensor_3D,
@@ -9,9 +12,6 @@ from conversion import (
     tensor_to_vec,
     transformation_3D,
 )
-
-import numpy as np
-from typing import List
 
 
 @dataclass
@@ -36,8 +36,8 @@ class Laminate:
     def __str__(self):
 
         desc = f'''
-        - Layers: {self._num_plys}
-        - Orientation:  {'/'.join([str(theta) for theta in self._layers['orientation']])}
+        - Layers: {self.props.num_layers}
+        - Orientation:  {'/'.join([str(round(l.props.orientation*180/np.pi)) for l in self.lamina])}
         '''
         return desc
 
