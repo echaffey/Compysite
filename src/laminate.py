@@ -7,30 +7,24 @@ from properties import StateProperties
 from conversion import tensor_to_vec
 
 
-@dataclass
-class LaminateProperties:
-    thickness: float = 0.0
-    num_layers: int = 0
-    length: float = 0.0
-    width: float = 0.0
-
-
 class Laminate:
     def __init__(self, length: int = 0, width: int = 0, symmetric: bool = True):
 
-        self._num_plys = 0
-        self.props = LaminateProperties(length=length, width=width)
-        self._thickness = 0
-        self._length = length
-        self._width = width
-        self._symmetric = symmetric
+        self.num_layers: int = 0
+        self.thickness: int = 0
+        self.length: int = length
+        self.width: int = width
+        self._z: np.array = None
+        self._symmetric: bool = symmetric
         self.lamina: List[Lamina] = []
         self.global_state: List[StateProperties] = []
+        self.mid_plane_state: StateProperties = StateProperties()
+        self._ABD: np.ndarray = None
 
     def __str__(self):
 
         desc = f'''
-        - Layers: {self.props.num_layers}
+        - Layers: {self._num_layers}
         - Orientation:  {'/'.join([str(round(l.props.orientation*180/np.pi)) for l in self.lamina])}
         '''
         return desc
@@ -55,8 +49,26 @@ class Laminate:
         self.lamina.append(lamina_copy)
 
         # Update laminate properties
-        self.props.thickness += lamina_copy.props.thickness
-        self.props.num_layers += 1
+        self.thickness += lamina_copy.props.thickness
+        self.num_layers += 1
+
+        # Determine layer heights
+        self.calc_heights()
+
+        # Construct the ABD matrix
+        self._ABD = self.ABD_matrix()
+
+    def calc_heights(self):
+
+        # Create an array to keep track of the superior and inferior layer heights
+        h = self.thickness / 2
+        z = np.zeros(self.num_layers + 1)
+        z[0] = -h
+
+        for idx, lamina in enumerate(self.lamina, start=1):
+            z[idx] = z[idx - 1] + lamina.props.thickness
+
+        self._z = z.copy()
 
     def apply_stress(self, global_stress_tensor: np.ndarray) -> None:
         '''
@@ -108,6 +120,20 @@ class Laminate:
 
         self.global_state = temp_state
 
+    def apply_load(self, NM_matrix: np.ndarray) -> None:
+
+        # Calculate the midplane strains due to the appllied loads and moments
+        self.mid_plane_state.strain = np.linalg.inv(self._ABD).dot(NM_matrix)
+
+    def get_state_at_height(self, z: int):
+
+        e = self.mid_plane_state.strain[:3]
+        k = self.mid_plane_state.strain[3:]
+
+        strain = e + z * k
+
+        return strain
+
     def get_lamina(self, layer_num: int = None) -> Lamina:
         '''
         Returns the lamina object at the given layer or the collection of all lamina in the laminate stack.
@@ -129,19 +155,44 @@ class Laminate:
         B = None
         D = None
 
-        for lamina in self.lamina:
+        for i, lamina in enumerate(self.lamina, start=1):
             # A matrix is working
             if A is not None:
                 A += lamina.matrices.Q_bar_reduced * lamina.props.thickness
             else:
                 A = lamina.matrices.Q_bar_reduced * lamina.props.thickness
 
-            # B not working
-            # B matrix needs square of superior and inferior layer heights
+            # B is working
             if B is not None:
-                B += 0.5 * lamina.matrices.Q_bar_reduced * lamina.props.thickness ** 2
+                B += (
+                    0.5
+                    * lamina.matrices.Q_bar_reduced
+                    * (self._z[i] ** 2 - self._z[i - 1] ** 2)
+                )
             else:
-                B = 0.5 * lamina.matrices.Q_bar_reduced * lamina.props.thickness ** 2
+                B = (
+                    0.5
+                    * lamina.matrices.Q_bar_reduced
+                    * (self._z[i] ** 2 - self._z[i - 1] ** 2)
+                )
 
-        return A
+            if D is not None:
+                D += (
+                    (1 / 3)
+                    * lamina.matrices.Q_bar_reduced
+                    * (self._z[i] ** 3 - self._z[i - 1] ** 3)
+                )
+            else:
+                D = (
+                    (1 / 3)
+                    * lamina.matrices.Q_bar_reduced
+                    * (self._z[i] ** 3 - self._z[i - 1] ** 3)
+                )
+
+        ABD = np.zeros((6, 6))
+        ABD[:3, :3] = A
+        ABD[3:, :3] = ABD[:3, 3:] = B
+        ABD[3:, 3:] = D
+
+        return ABD
 

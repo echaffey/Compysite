@@ -165,6 +165,8 @@ def notes_p_56():
     alpha = np.array([-0.018, 24.3, 24.3]) * 1e-6
     beta = np.array([146, 4770, 4770]) * 1e-6
 
+    NM = np.array([1000, 1000, 0, 0, 0, 0])
+
     lam = Laminate()
     mat = Material(E, v, G, alpha, beta)
     layer_1 = Lamina(mat_composite=mat, thickness=5e-3)
@@ -173,7 +175,20 @@ def notes_p_56():
     lam.add_lamina(layer_1, 30)
     lam.add_lamina(layer_1, -45)
 
-    print(lam.ABD_matrix())
+    sigma = create_tensor_3D(1000 / 5e-3, 1000 / 5e-3, 0)
+
+    lam.apply_load(NM)
+    # lam.apply_stress(sigma)
+
+    # NOT WORKING BELOW
+    strain_top_30 = lam.get_state_at_height(-2.5e-3)
+
+    strain = create_tensor_3D(*strain_top_30)
+    lam.lamina[1].apply_strain(strain)
+
+    print(lam.lamina[0].matrices.T_2D.dot(strain_top_30))
+
+    # print(strain_top_30)
 
 
 def main():
@@ -204,3 +219,4 @@ if __name__ == '__main__':
     # validation_5()
     # validation_6()
     notes_p_56()
+
