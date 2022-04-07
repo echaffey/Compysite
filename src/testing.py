@@ -2,6 +2,8 @@ from Compysite import Material, Lamina, Laminate
 import numpy as np
 import matplotlib.pyplot as plt
 from conversion import create_tensor_3D
+from conversion import to_epsilon
+from conversion import tensor_to_vec
 
 
 def validation_1():
@@ -38,8 +40,8 @@ def validation_2():
     mat = Material(E, v, G)
     layer_1 = Lamina(mat_composite=mat)
 
-    print(layer_1.matrices.S)
-    print(layer_1.matrices.C)
+    print(layer_1.matrices.S_reduced)
+    print(layer_1.matrices.C_reduced)
 
 
 def validation_3():
@@ -121,6 +123,63 @@ def validation_6():
     print(lam.get_lamina(2).matrices.T_2D)
 
 
+def validation_7():
+    E = np.array([181, 10.3, 10.3]) * 1e9
+    v = np.array([0, 0.28, 0.28])
+    G = np.array([1, 7.17, 7.17]) * 1e9
+
+    NM = np.array([1000, 1000, 0, 0, 0, 0])
+
+    lam = Laminate()
+    mat = Material(E, v, G)
+    layer_1 = Lamina(mat_composite=mat, thickness=5e-3)
+
+    lam.add_lamina(layer_1, 0)
+    lam.add_lamina(layer_1, 30)
+    lam.add_lamina(layer_1, -45)
+
+    lam.apply_load(NM)
+
+    state = lam.get_state_at_height(-2.5e-3, 2)
+
+    print(state.strain)
+
+    # z_height = np.linspace(lam._z[0], lam._z[-1], 100)
+    # stresses = np.zeros((3, 100))
+
+    # for i, z in enumerate(z_height):
+    #     state = lam.get_state_at_height(z)
+    #     stresses[0, i] = state.strain[0]
+    #     stresses[1, i] = state.strain[1]
+    #     stresses[2, i] = state.strain[2]
+
+    # plt.plot(stresses[0, :], z_height)
+    # plt.plot(stresses[1, :], z_height)
+    # plt.plot(stresses[2, :], z_height)
+
+    # for i, _ in enumerate(lam._z):
+    #     plt.hlines(lam._z[i], -4e-6, 6e-6, linewidth=1)
+    # plt.show()
+
+
+def validation_8():
+    E = np.array([138, 9, 9])
+    v = np.array([0, 0.3, 0.3])
+    G = np.array([1, 6.9, 6.9])
+
+    lam = Laminate()
+    mat = Material(E, v, G)
+    layer_1 = Lamina(mat_composite=mat, thickness=0.25)
+
+    lam.add_lamina(layer_1, 45)
+    lam.add_lamina(layer_1, -45)
+    lam.add_lamina(layer_1, -45)
+    lam.add_lamina(layer_1, 45)
+
+    print(lam.ABD_matrix()[3:, 3:].round(2))
+    # print(lam.lamina[1].matrices.Q_bar_reduced * 1e-9)
+
+
 def testing():
     E = np.array([100, 20, 20])
     v = np.array([0.40, 0.18, 0.18])
@@ -191,6 +250,21 @@ def notes_p_56():
     # print(strain_top_30)
 
 
+def test_2D():
+    E = np.array([180, 20, 20])
+    v = np.array([0, 0.3, 0.3])
+    G = np.array([1, 5, 5])
+
+    lam = Laminate()
+    mat = Material(E, v, G)
+    layer_1 = Lamina(mat_composite=mat)
+    lam.add_lamina(layer_1, 60)
+
+    sigma = create_tensor_3D(50, 10, -10)
+
+    lam.apply_stress(sigma)
+
+
 def main():
     E = np.array([14, 3.5, 3.5])
     v = np.array([0.5, 0.4, 0.4])
@@ -210,6 +284,40 @@ def main():
     print(lam.global_state)
 
 
+def web_problem():
+    # https://courses.washington.edu/mengr450/CLT_Summary.pdf
+    E_1 = np.array([25, 1.5, 1.5]) * 1e6
+    v_1 = np.array([0, 0.3, 0.3])
+    G_1 = np.array([1, 1.9, 1.9]) * 1e6
+    a_1 = np.array([-0.5, 15, 0, 0, 0, 0]) * 1e-6
+
+    E_2 = np.array([8, 2.3, 2.3]) * 1e6
+    v_2 = np.array([0, 0.28, 0.28])
+    G_2 = np.array([1, 1.1, 1.1]) * 1e6
+    a_2 = np.array([3.7, 14, 0, 0, 0, 0]) * 1e-6
+
+    lam = Laminate()
+
+    mat_1 = Material(E_1, v_1, G_1, a_1)
+    mat_2 = Material(E_2, v_2, G_2, a_2)
+
+    layer_1 = Lamina(mat_composite=mat_1, thickness=0.005)
+    layer_2 = Lamina(mat_composite=mat_2, thickness=0.005)
+
+    lam.add_lamina(layer_1, 0)
+    lam.add_lamina(layer_2, 30)
+    lam.add_lamina(layer_1, 90)
+    lam.add_lamina(layer_2, -30)
+
+    NM = np.array([520, 377, 64.4, -4, 0.22, -0.0854])
+    # lam.apply_load(NM)
+
+    dT = -275
+    # print(lam.lamina[1].get_lamina_expansion_properties())
+
+    # ABD = lam.ABD_matrix()
+
+
 if __name__ == '__main__':
     # main()
     # validation_1()
@@ -218,5 +326,9 @@ if __name__ == '__main__':
     # validation_4()
     # validation_5()
     # validation_6()
-    notes_p_56()
+    # validation_7()
+    validation_8()
+    # notes_p_56()
+    # test_2D()
+    # web_problem()
 

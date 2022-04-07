@@ -7,6 +7,15 @@ class StateProperties:
     stress: np.ndarray = None
     strain: np.ndarray = None
 
+    def __str__(self):
+        return f'''
+        Stress: 
+        {self.stress[0]}, {self.stress[1]}, {self.stress[2]}
+
+        Strain:
+        {self.strain[0]}, {self.strain[1]}, {self.strain[2]}
+        '''
+
 
 def type_check(properties):
     '''
