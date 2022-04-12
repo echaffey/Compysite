@@ -8,35 +8,39 @@ Compysite is a python library designed to bring a simple, object-oriented approa
 
 This package is written in Python and utilizes numpy. It allows for the creation of materials, lamina and laminate stacks for engineering analysis using Classical Lamination Theory (CLT).  Compysite allows for the application of loads, strains, stresses, as well as thermal and moisture effects. 
 
-### Run Compysite with Python
+### Requirements
 
 This package requires python version 3.70 or later, numpy and matplotlib.  
 ```
 pip install numpy matplotlib
 ```
 
+### Run Compysite with Python
+
+
+
 To create a composite material from its constituent fiber and matrix materials:
 ```python
 import numpy as np
 from Compysite import Material, Lamina, Laminate
 
-% Fiber material properties in the [23, 13, 12] directions
+# Fiber material properties in the [23, 13, 12] directions
 E_f = np.array([233, 23.1, 23.1])*1e9
 v_f = np.array([0.40, 0.20, 0.20])
 G_f = np.array([8.27, 8.96, 8.96])*1e9
 alpha_f = np.array([-0.54, 10.10, 10.10])*1e-6
 
-% Matrix material properties can also be given as an isotropic material
+# Matrix material properties can also be given as an isotropic material
 E_m = 4.62
 v_m = 0.36
 G_m = 0
 alpha_m = 41.4
 
-% Create the materials from their respective properties
+# Create the materials from their respective properties
 mat_f = Material(E_f, v_f, G_f, alpha_f)
 mat_m = Material(E_m, v_m, G_m, alpha_m)
 
-% Assemble the fiber and matrix materials into a composite lamina
+# Assemble the fiber and matrix materials into a composite lamina
 layer = Lamina(mat_fiber=mat_f, mat_matrix=mat_m, Vol_fiber=V_f)
 ```
 
@@ -60,7 +64,7 @@ lam = Laminate()
 mat = Material(E, v, G)
 layer = Lamina(mat_composite=mat, thickness=5e-3)
 
-% Create a symmetric [0/30/30/0] laminate stack
+# Create a symmetric [0/30/30/0] laminate stack
 lam.add_lamina(layer, 0)
 lam.add_lamina(layer, 30)
 lam.add_lamina(layer, 30)
