@@ -56,7 +56,7 @@ C = layer.matrices.C
 ```
 
 To create a composite stack, individual lamina can be added with a given orientation:
-```
+```python
 E = np.array([181, 10.3, 10.3]) * 1e9
 v = np.array([0, 0.28, 0.28])
 G = np.array([1, 7.17, 7.17]) * 1e9
