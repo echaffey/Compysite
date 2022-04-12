@@ -89,3 +89,5 @@ print(lam.global_state)
 # Get individual lamina stress/strain state (layer 2, 30 degree orientation here)
 print(lam.get_lamina(2).local_state)
 ```
+
+Further details to come
