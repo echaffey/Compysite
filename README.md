@@ -29,6 +29,7 @@ E_f = np.array([233, 23.1, 23.1])*1e9
 v_f = np.array([0.40, 0.20, 0.20])
 G_f = np.array([8.27, 8.96, 8.96])*1e9
 alpha_f = np.array([-0.54, 10.10, 10.10])*1e-6
+V_f = 0.61   # Fiber volume fraction
 
 # Matrix material properties can also be given as an isotropic material
 E_m = 4.62
